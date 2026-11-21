@@ -1,4 +1,5 @@
 import express from "express";
+import { runAlgorithm, SUPPORTED_ALGORITHMS } from "./src/algorithms.js";
 
 const app = express();
 const PORT = 3000;
@@ -6,12 +7,72 @@ const PORT = 3000;
 app.use(express.json());
 app.use(express.static("public"));
 
-app.get("/api/help", (res) => {
+app.get("/api/help", (_req, res) => {
+    return res.status(200).json({
+        status: "API WORKING!",
+        endpoints: {
+            simulate: {
+                method: "POST",
+                url: "/api/simulate",
+                supportedAlgorithms: SUPPORTED_ALGORITHMS,
+                examplePayload: {
+                    config: {
+                        totalMemory: 1024,
+                        partitionType: "dynamic",
+                        initialPartitions: [1024],
+                        processes: [
+                            { id: "P1", size: 212 },
+                            { id: "P2", size: 417 }
+                        ]
+                    },
+                    algorithms: ["first-fit", "best-fit"]
+                }
+            }
+        }
+    });
+});
+
+
+app.post("/api/simulate", (req, res) => {
     try {
-        return res.status(200).json("API WORKING!");
-    } catch (erro) {
-        console.error("API ERROR:", erro);
-        return res.status(500).json({ erro: "API ERROR" });
+        const { config, algorithms } = req.body;
+
+        if (
+            !config ||
+            typeof config !== "object" ||
+            Array.isArray(config) ||
+            Object.keys(config).length === 0 ||
+            !Array.isArray(algorithms) ||
+            algorithms.length === 0
+        ) {
+            return res.status(400).json({
+                error: "Invalid request: non-empty 'config' object and 'algorithms' array are required."
+            });
+        }
+
+        const uniqueAlgorithms = [...new Set(algorithms)]
+
+        const invalidAlgorithms = uniqueAlgorithms.filter(
+            (alg) => !SUPPORTED_ALGORITHMS.includes(alg)
+        );
+
+        if (invalidAlgorithms.length > 0) {
+            return res.status(400).json({
+                error: `Unsupported algorithm(s): ${invalidAlgorithms.join(", ")}.`,
+                allowedAlgorithms: SUPPORTED_ALGORITHMS
+            });
+        }
+
+        const results = {};
+
+        for (const algorithmName of uniqueAlgorithms) {
+            results[algorithmName] = runAlgorithm(config, algorithmName);
+        }
+
+        return res.status(200).json(results);
+    } catch (error) {
+        console.error("Simulation error:", error);
+        return res.status(500).json({ error: error.message || "Internal server error." });
     }
 });
 
