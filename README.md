@@ -1,5 +1,6 @@
 # Folder structure idea
 
+```text
 Memory management simulator/
 ├── package.json
 ├── server.js             # Start server and define routes
@@ -9,3 +10,4 @@ Memory management simulator/
     ├── index.html
     ├── style.css
     └── app.js
+```
