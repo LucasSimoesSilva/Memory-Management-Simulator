@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MemSim — Simulador de Gerenciamento de Memória</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+        rel="stylesheet" />
+
+    <link rel="stylesheet" href="css/global.css" />
+    <link rel="stylesheet" href="css/compare.css" />
+</head>
+
+<body>
+
+    <!-- HEADER -->
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path
+                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z">
+                    </path>
+                </svg>
+            </div>
+            <div class="brand-info">
+                <h1>MemSim</h1>
+                <span>Simulador de Gerenciamento de Memória</span>
+            </div>
+        </div>
+        <!-- TABS -->
+        <nav class="nav-tabs" aria-label="Navegação principal">
+            <button type="button" class="nav-tab" data-tab="configure">Configurar</button>
+            <button type="button" class="nav-tab" data-tab="simulate">Simular</button>
+            <button type="button" class="nav-tab" data-tab="results">Resultados</button>
+            <button type="button" class="nav-tab active" data-tab="compare">Comparar</button>
+            <button type="button" class="nav-tab" data-tab="tests">Testes</button>
+        </nav>
+    </header>
+
+    <main class="container">
+
+        <section id="tab-configure" class="tab-panel" hidden></section>
+        <section id="tab-simulate" class="tab-panel" hidden></section>
+        <section id="tab-results" class="tab-panel" hidden></section>
+        <section id="tab-tests" class="tab-panel" hidden></section>
+
+        <!-- COMPARE TAB -->
+        <section id="tab-compare" class="tab-panel active">
+
+            <div class="page-header">
+                <div>
+                    <h2>Comparação entre algoritmos</h2>
+                    <p id="comparison-subtitle" class="subtitle">Nenhuma sequência de eventos cadastrada</p>
+                </div>
+
+                <div class="comparison-controls">
+                    <label class="algo-checkbox">
+                        <input type="checkbox" name="algorithm" value="first-fit" checked />
+                        <span class="checkmark"></span>
+                        <span>First Fit</span>
+                    </label>
+
+                    <label class="algo-checkbox">
+                        <input type="checkbox" name="algorithm" value="best-fit" checked />
+                        <span class="checkmark"></span>
+                        <span>Best Fit</span>
+                    </label>
+
+                    <label class="algo-checkbox">
+                        <input type="checkbox" name="algorithm" value="worst-fit" checked />
+                        <span class="checkmark"></span>
+                        <span>Worst Fit</span>
+                    </label>
+
+                    <button type="button" id="btn-run-comparison" class="btn btn-primary">
+                        Executar comparação
+                    </button>
+                </div>
+            </div>
+
+            <!-- Alert Banner, to be hidden when JS working -->
+            <div id="empty-config-banner" class="alert-banner">
+                <p>Para compare, cadastre a sequência de eventos na aba Configurar. Os três algoritmos rodam sobre a
+                    mesma entrada.</p>
+                <button type="button" class="btn btn-primary btn-sm" data-go-tab="configure">
+                    Ir para Configurar
+                </button>
+            </div>
+
+            <!-- FINAL STATE OF MEMORY -->
+            <article class="card">
+                <h3 class="card-title">FINAL STATE OF MEMORY</h3>
+
+                <div class="memory-list">
+                    <!-- First Fit -->
+                    <div class="memory-row" data-algo="first-fit">
+                        <span class="algo-name">First Fit</span>
+                        <div class="memory-bar">
+                            <div class="memory-segment is-os" style="width: 12.5%; --segment-color: var(--color-os);">
+                                <strong>SO</strong>
+                                <span>128 KB</span>
+                            </div>
+                            <div class="memory-segment" style="width: 19.53%; --segment-color: #1226FF;">
+                                <strong>P1</strong>
+                                <span>200 KB</span>
+                            </div>
+                            <div class="memory-segment" style="width: 17.58%; --segment-color: #FD8700;">
+                                <strong>P5</strong>
+                                <span>180 KB</span>
+                            </div>
+                            <div class="memory-segment" style="width: 5.86%; --segment-color: #FF008C;">
+                                <strong>P7</strong>
+                                <span>60 KB</span>
+                            </div>
+                            <div class="memory-segment" style="width: 14.65%; --segment-color: #1F6327;">
+                                <strong>P3</strong>
+                                <span>150 KB</span>
+                            </div>
+                            <div class="memory-segment" style="width: 9.76%; --segment-color: #8300F5;">
+                                <strong>P4</strong>
+                                <span>100 KB</span>
+                            </div>
+                            <div class="memory-segment is-free"
+                                style="width: 20.12%; --segment-color: var(--color-free);">
+                                <strong>Livre</strong>
+                                <span>196 KB</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Best Fit -->
+                    <div class="memory-row" data-algo="best-fit">
+                        <span class="algo-name">Best Fit</span>
+                        <div class="memory-bar">
+                            <div class="memory-segment is-os" style="width: 12.5%; --segment-color: var(--color-os);">
+                                <strong>SO</strong>
+                                <span>128 KB</span>
+                            </div>
+                            <div class="memory-segment" style="width: 19.53%; --segment-color: #1226FF;">
+                                <strong>P1</strong>
+                                <span>200 KB</span>
+                            </div>
+                            <div class="memory-segment" style="width: 22.46%; --segment-color: #FF0000;">
+                                <strong>P6</strong>
+                                <span>230 KB</span>
+                            </div>
+                            <div class="memory-segment is-free"
+                                style="width: 3.52%; --segment-color: var(--color-free);"></div>
+                            <div class="memory-segment" style="width: 14.65%; --segment-color: #1F6327;">
+                                <strong>P3</strong>
+                                <span>150 KB</span>
+                            </div>
+                            <div class="memory-segment" style="width: 9.76%; --segment-color: #8300F5;">
+                                <strong>P4</strong>
+                                <span>100 KB</span>
+                            </div>
+                            <div class="memory-segment" style="width: 17.58%; --segment-color: #FD8700;">
+                                <strong>P5</strong>
+                                <span>180 KB</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Worst Fit -->
+                    <div class="memory-row" data-algo="worst-fit">
+                        <span class="algo-name">Worst Fit</span>
+                        <div class="memory-bar">
+                            <!-- Exemplo de como fica no estado vazio (basta renderizar essa div interna) -->
+                            <!-- <div class="memory-empty">Aguardando execução</div> -->
+                            <div class="memory-segment is-os" style="width: 12.5%; --segment-color: var(--color-os);">
+                                <strong>SO</strong>
+                                <span>128 KB</span>
+                            </div>
+                            <div class="memory-segment" style="width: 19.53%; --segment-color: #1226FF;">
+                                <strong>P1</strong>
+                                <span>200 KB</span>
+                            </div>
+                            <div class="memory-segment" style="width: 17.58%; --segment-color: #FD8700;">
+                                <strong>P5</strong>
+                                <span>180 KB</span>
+                            </div>
+                            <div class="memory-segment is-free"
+                                style="width: 6.84%; --segment-color: var(--color-free);">
+                                <strong>Livre</strong>
+                                <span>70 KB</span>
+                            </div>
+                            <div class="memory-segment" style="width: 14.65%; --segment-color: #1F6327;">
+                                <strong>P3</strong>
+                                <span>150 KB</span>
+                            </div>
+                            <div class="memory-segment" style="width: 9.76%; --segment-color: #8300F5;">
+                                <strong>P4</strong>
+                                <span>100 KB</span>
+                            </div>
+                            <div class="memory-segment" style="width: 5.86%; --segment-color: #FF008C;">
+                                <strong>P7</strong>
+                                <span>60 KB</span>
+                            </div>
+                            <div class="memory-segment is-free"
+                                style="width: 13.28%; --segment-color: var(--color-free);">
+                                <strong>Livre</strong>
+                                <span>136 KB</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Empty Memory Example -->
+                    <div class="memory-row" data-algo="worst-fit">
+                        <span class="algo-name">Empty Memory</span>
+                        <div class="memory-bar">
+                            <!-- Exemplo de como fica no estado vazio (basta renderizar essa div interna) -->
+                            <!-- <div class="memory-empty">Aguardando execução</div> -->
+                            <div class="memory-empty" style="width: 12.5%; --segment-color: var(--color-os);">
+                                Aguardando execução
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Memory Ruler -->
+                <div class="memory-ruler">
+                    <span>0</span>
+                    <span>256</span>
+                    <span>512</span>
+                    <span>768</span>
+                    <span>1024 KB</span>
+                </div>
+            </article>
+
+            <!-- Second Grid: MÉTRICA LADO A LADO + GRÁFICOS -->
+            <div class="comparison-grid">
+
+                <!-- MÉTRICA LADO A LADO -->
+                <article class="card">
+                    <h3 class="card-title">Métrica lado a lado</h3>
+
+                    <div class="table-wrapper">
+                        <table class="data-table metrics-table">
+                            <thead>
+                                <tr>
+                                    <th>Métrica</th>
+                                    <th>First Fit</th>
+                                    <th>Best Fit</th>
+                                    <th>Worst Fit</th>
+                                </tr>
+                            </thead>
+                            <tbody id="metrics-table-body">
+                                <tr>
+                                    <td>Processos alocados</td>
+                                    <td>6 de 7</td>
+                                    <td>6 de 7</td>
+                                    <td>6 de 7</td>
+                                </tr>
+                                <tr>
+                                    <td>Taxa de alocação</td>
+                                    <td>85,7%</td>
+                                    <td>85,7%</td>
+                                    <td>85,7%</td>
+                                </tr>
+                                <tr>
+                                    <td>Processo recusado</td>
+                                    <td>P6</td>
+                                    <td>P7</td>
+                                    <td>P6</td>
+                                </tr>
+                                <tr>
+                                    <td>Utilização final</td>
+                                    <td>77,0%</td>
+                                    <td><span class="highlight-best">96,8%</span></td>
+                                    <td>77,0%</td>
+                                </tr>
+                                <tr>
+                                    <td>Memória livre</td>
+                                    <td>206 KB</td>
+                                    <td>36 KB</td>
+                                    <td>206 KB</td>
+                                </tr>
+                                <tr>
+                                    <td>Maior lacuna</td>
+                                    <td><span class="highlight-best">196 KB</span></td>
+                                    <td>20 KB</td>
+                                    <td>136 KB</td>
+                                </tr>
+                                <tr>
+                                    <td>Nº de lacunas</td>
+                                    <td>2</td>
+                                    <td>2</td>
+                                    <td>2</td>
+                                </tr>
+                                <tr>
+                                    <td>Fragmentação externa</td>
+                                    <td><span class="highlight-best">4,9%</span></td>
+                                    <td>44,4%</td>
+                                    <td>34,0%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p class="table-footnote">Célula destacada = melhor valor da linha</p>
+                </article>
+
+                <!-- GRÁFICOS -->
+                <article class="card">
+                    <h3 class="card-title">Gráficos</h3>
+
+                    <div class="charts-container">
+                        <!-- Chart 1 -->
+                        <div class="chart-group">
+                            <h4>Utilização da memória (maior é melhor)</h4>
+                            <div class="chart-row">
+                                <span class="chart-label">First Fit</span>
+                                <div class="chart-track">
+                                    <div class="chart-fill" style="width: 77%; --bar-color: #6925F2;"></div>
+                                </div>
+                                <span class="chart-value">77,0%</span>
+                            </div>
+                            <div class="chart-row">
+                                <span class="chart-label">Best Fit</span>
+                                <div class="chart-track">
+                                    <div class="chart-fill" style="width: 96.8%; --bar-color: #6925F2;"></div>
+                                </div>
+                                <span class="chart-value">96,8%</span>
+                            </div>
+                            <div class="chart-row">
+                                <span class="chart-label">Worst Fit</span>
+                                <div class="chart-track">
+                                    <div class="chart-fill" style="width: 77%; --bar-color: #6925F2;"></div>
+                                </div>
+                                <span class="chart-value">77,0%</span>
+                            </div>
+                        </div>
+
+                        <!-- Chart 2 -->
+                        <div class="chart-group">
+                            <h4>Fragmentação externa (menor é melhor)</h4>
+                            <div class="chart-row">
+                                <span class="chart-label">First Fit</span>
+                                <div class="chart-track">
+                                    <div class="chart-fill" style="width: 4.9%; --bar-color: #1226FF;"></div>
+                                </div>
+                                <span class="chart-value">4,9%</span>
+                            </div>
+                            <div class="chart-row">
+                                <span class="chart-label">Best Fit</span>
+                                <div class="chart-track">
+                                    <div class="chart-fill" style="width: 44.4%; --bar-color: #1226FF;"></div>
+                                </div>
+                                <span class="chart-value">44,4%</span>
+                            </div>
+                            <div class="chart-row">
+                                <span class="chart-label">Worst Fit</span>
+                                <div class="chart-track">
+                                    <div class="chart-fill" style="width: 34%; --bar-color: #1226FF;"></div>
+                                </div>
+                                <span class="chart-value">34,0%</span>
+                            </div>
+                        </div>
+
+                        <!-- Chart 3 -->
+                        <div class="chart-group">
+                            <h4>Maior lacuna livre (KB, de 896)</h4>
+                            <div class="chart-row">
+                                <span class="chart-label">First Fit</span>
+                                <div class="chart-track">
+                                    <div class="chart-fill" style="width: 21.8%; --bar-color: #FF008C;"></div>
+                                </div>
+                                <span class="chart-value">196 KB</span>
+                            </div>
+                            <div class="chart-row">
+                                <span class="chart-label">Best Fit</span>
+                                <div class="chart-track">
+                                    <div class="chart-fill" style="width: 2.2%; --bar-color: #FF008C;"></div>
+                                </div>
+                                <span class="chart-value">20 KB</span>
+                            </div>
+                            <div class="chart-row">
+                                <span class="chart-label">Worst Fit</span>
+                                <div class="chart-track">
+                                    <div class="chart-fill" style="width: 15.2%; --bar-color: #FF008C;"></div>
+                                </div>
+                                <span class="chart-value">136 KB</span>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </div>
+
+            <!-- ONDE AS DECISÕES DIVERGEM -->
+            <article class="card">
+                <h3 class="card-title">Onde as decisões divergem</h3>
+                <p class="card-subtitle">
+                    Os eventos 1 a 5 têm o mesmo resultado nos três algoritmos, porque só existe uma lacuna possível. As
+                    escolhas mudam a partir do evento 6
+                </p>
+
+                <div class="table-wrapper">
+                    <table class="data-table divergence-table">
+                        <thead>
+                            <tr>
+                                <th>Evento</th>
+                                <th>Lacunas no momento</th>
+                                <th>First Fit</th>
+                                <th>Best Fit</th>
+                                <th>Worst Fit</th>
+                            </tr>
+                        </thead>
+                        <tbody id="divergence-table-body">
+                            <tr>
+                                <td>6 · P5 180 KB</td>
+                                <td>328–578 (250) · 828–1024 (196)</td>
+                                <td>328–508</td>
+                                <td>828–1008</td>
+                                <td>328–508</td>
+                            </tr>
+                            <tr>
+                                <td>7 · P6 230 KB</td>
+                                <td>varia conforme o passo 6</td>
+                                <td>recusado</td>
+                                <td>328–558</td>
+                                <td>recusado</td>
+                            </tr>
+                            <tr>
+                                <td>8 · P7 60 KB</td>
+                                <td>varia conforme os passos anteriores</td>
+                                <td>508–568</td>
+                                <td>recusado</td>
+                                <td>828–888</td>
+                            </tr>
+                            <!-- When compared, it has not yet been executed
+              <tr>
+                <td colspan="5" class="empty-table-cell">As divergências aparecem após executar a comparação.</td>
+              </tr>
+              -->
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+
+        </section>
+    </main>
+
+</body>
+
+</html>

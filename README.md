@@ -8,6 +8,7 @@ Memory management simulator/
 │   └── algorithms.js     # Backend logic
 └── public/               # Frontend folder
     ├── index.html
-    ├── style.css
+    ├── css
+    |    └── global.css
     └── app.js
 ```
