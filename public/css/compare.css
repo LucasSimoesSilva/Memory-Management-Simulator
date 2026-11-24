@@ -125,7 +125,7 @@
     border: 1px solid var(--border-subtle);
 }
 
-/* Empty memory bar state  */
+/* Empty memory bar state */
 .memory-empty {
     width: 100%;
     height: 100%;
@@ -138,6 +138,7 @@
 
 /* Individual memory segments (dynamic color via --segment-color) */
 .memory-segment {
+    min-width: 0;
     height: 100%;
     background-color: var(--segment-color, var(--color-free));
     display: flex;
@@ -228,7 +229,7 @@
     text-align: center;
 }
 
-/* Highlight of the best metric in the line */
+/* Highlight of the best metric in the row */
 .highlight-best {
     display: inline-block;
     background-color: var(--purple-highlight-bg);
@@ -250,6 +251,12 @@
     text-align: center !important;
     color: var(--text-muted) !important;
     padding: 28px 12px !important;
+}
+
+/* Loading state during API fetch */
+#tab-compare[aria-busy="true"] .card {
+    opacity: 0.7;
+    pointer-events: none;
 }
 
 /* --- HORIZONTAL BAR CHARTS --- */

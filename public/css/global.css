@@ -16,11 +16,10 @@
     --purple-vibrant: #6925F2;
     --purple-highlight-bg: rgba(93, 40, 199, 0.38);
 
-    /* Standard Memory Colors (System and Free) */
-    --color-os: #6F80A3;
+    /* Standard Memory Color (Free) */
     --color-free: #4D4D4D;
 
-    /* Default process test colors */
+    /* Default process colors */
     --proc-blue: #1226FF;
     --proc-pink: #FF008C;
     --proc-green: #1F6327;
@@ -122,7 +121,7 @@ body {
     border-bottom-color: var(--purple-vibrant);
 }
 
-/* --- CONTAINER and CARDS --- */
+/* --- CONTAINER AND CARDS --- */
 .container {
     max-width: 1240px;
     margin: 0 auto;
@@ -151,7 +150,7 @@ body {
     margin-bottom: 16px;
 }
 
-/* --- Buttons --- */
+/* --- BUTTONS --- */
 .btn {
     font-family: inherit;
     font-size: 0.85rem;
