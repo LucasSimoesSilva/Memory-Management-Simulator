@@ -178,7 +178,7 @@ function renderMemoryBars(algorithms) {
             }
 
             const segmentsHtml = result.blocks
-                .map((block) => {
+                .map((block, index) => {
                     const widthPercent = Math.max(0, (Number(block.size) / totalMemory) * 100);
                     const isFree = Boolean(block.isFree);
                     const segmentColor = isFree
@@ -191,7 +191,7 @@ function renderMemoryBars(algorithms) {
                     return `
                         <div
                             class="memory-segment${isFree ? " is-free" : ""}"
-                            style="width: ${widthPercent.toFixed(4)}%; --segment-color: ${segmentColor};"
+                            style="width: ${widthPercent.toFixed(4)}%; --segment-color: ${segmentColor}; --i: ${index};"
                             title="${escapeHtml(tooltip)}"
                         >
                             <strong>${titleText}</strong>
@@ -239,7 +239,7 @@ function renderMetricsTable(algorithms) {
         return;
     }
 
-    tbody.innerHTML = METRIC_DEFINITIONS.map((metricDef) => {
+    tbody.innerHTML = METRIC_DEFINITIONS.map((metricDef, rowIndex) => {
         const rowEntries = displayAlgorithms.map((alg) => {
             const metrics = appState.resultsCache[alg]?.metrics;
             if (!metrics) {
@@ -266,7 +266,7 @@ function renderMetricsTable(algorithms) {
             .join("");
 
         return `
-            <tr>
+            <tr style="--i: ${rowIndex};">
                 <td>${escapeHtml(metricDef.label)}</td>
                 ${cellsHtml}
             </tr>
@@ -312,17 +312,18 @@ function renderCharts(algorithms) {
     container.innerHTML = chartSpecs
         .map((spec) => {
             const rowsHtml = displayAlgorithms
-                .map((alg) => {
+                .map((alg, rowIndex) => {
                     const label = ALGORITHM_LABELS[alg] || alg;
                     const metrics = appState.resultsCache[alg]?.metrics;
                     const widthPercent = metrics ? spec.getPercent(metrics) : 0;
                     const valueText = metrics ? spec.getValueLabel(metrics) : "—";
 
+                    // Bars start at 0 and grow to data-width (see animateChartFills)
                     return `
                         <div class="chart-row">
                             <span class="chart-label">${escapeHtml(label)}</span>
                             <div class="chart-track">
-                                <div class="chart-fill" style="width: ${widthPercent.toFixed(2)}%; --bar-color: ${spec.barColor};"></div>
+                                <div class="chart-fill" data-width="${widthPercent.toFixed(2)}" style="width: 0%; --bar-color: ${spec.barColor}; --i: ${rowIndex};"></div>
                             </div>
                             <span class="chart-value">${escapeHtml(valueText)}</span>
                         </div>
@@ -338,6 +339,36 @@ function renderCharts(algorithms) {
             `;
         })
         .join("");
+
+    animateChartFills(container);
+}
+
+/**
+ * Grows each bar from 0 to its value on the next frames, so the CSS width transition plays.
+ */
+function animateChartFills(container) {
+    const fills = container.querySelectorAll(".chart-fill[data-width]");
+    // Force a reflow so the browser commits width: 0 before the target width (works even in
+    // background tabs, where requestAnimationFrame is paused)
+    void container.offsetWidth;
+    fills.forEach((fill) => {
+        fill.style.width = `${fill.dataset.width}%`;
+    });
+}
+
+/**
+ * Replays a one-shot animation class on the Compare section.
+ */
+function playSectionAnimation(className, durationMs) {
+    const section = document.getElementById("tab-compare");
+    if (!section) {
+        return;
+    }
+    section.classList.remove(className);
+    void section.offsetWidth;
+    section.classList.add(className);
+    clearTimeout(section[`_${className}Timer`]);
+    section[`_${className}Timer`] = setTimeout(() => section.classList.remove(className), durationMs);
 }
 
 function renderDivergencesTable(algorithms) {
@@ -441,7 +472,7 @@ function renderDivergencesTable(algorithms) {
     }
 
     tbody.innerHTML = divergentRows
-        .map((entry) => {
+        .map((entry, rowIndex) => {
             const holeValues = executedAlgorithms
                 .map((alg) => entry.holesByAlg[alg])
                 .filter((val) => val && val !== "—");
@@ -455,7 +486,7 @@ function renderDivergencesTable(algorithms) {
                 .join("");
 
             return `
-                <tr>
+                <tr style="--i: ${rowIndex};">
                     <td>${escapeHtml(entry.eventLabel)}</td>
                     <td>${escapeHtml(holesLabel)}</td>
                     ${decisionCells}
@@ -525,6 +556,7 @@ async function handleRunComparison() {
     // Render directly from cache when all selected algorithms were already computed
     if (missingAlgorithms.length === 0) {
         renderComparisonView();
+        playSectionAnimation("is-revealing", 1800);
         return;
     }
 
@@ -560,6 +592,7 @@ async function handleRunComparison() {
 
         saveSimulationResults(payload);
         renderComparisonView();
+        playSectionAnimation("is-revealing", 1800);
     } catch (error) {
         console.error("Comparison request failed:", error);
         const banner = document.getElementById("empty-config-banner");
@@ -595,8 +628,18 @@ function initCompareTab() {
     window.addEventListener("memsim:results-updated", renderComparisonView);
     window.addEventListener("memsim:tab-changed", (event) => {
         if (event.detail?.tabName === "compare") {
+            playSectionAnimation("is-entering", 900);
             syncComparePageState();
         }
+    });
+
+    // "Comparar os 3 algoritmos" in the Configure tab: select all algorithms and run immediately
+    window.addEventListener("memsim:request-comparison", () => {
+        checkboxes.forEach((checkbox) => {
+            checkbox.checked = true;
+        });
+        syncComparePageState();
+        handleRunComparison();
     });
 
     syncComparePageState();

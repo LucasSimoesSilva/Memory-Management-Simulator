@@ -18,14 +18,16 @@ app.get("/api/help", (_req, res) => {
                 examplePayload: {
                     config: {
                         totalMemory: 1024,
+                        osSize: 128,
                         partitionType: "dynamic",
-                        initialPartitions: [1024],
-                        processes: [
-                            { id: "P1", size: 212 },
-                            { id: "P2", size: 417 }
+                        events: [
+                            { type: "allocate", process: "P1", size: 200 },
+                            { type: "allocate", process: "P2", size: 250 },
+                            { type: "free", process: "P1" }
                         ]
                     },
-                    algorithms: ["first-fit", "best-fit"]
+                    algorithms: ["first-fit", "best-fit"],
+                    interventions: [{ afterStep: 2, type: "compact" }]
                 }
             }
         }
@@ -35,7 +37,11 @@ app.get("/api/help", (_req, res) => {
 
 app.post("/api/simulate", (req, res) => {
     try {
-        const { config, algorithms } = req.body;
+        const { config, algorithms, interventions = [] } = req.body;
+
+        if (!Array.isArray(interventions)) {
+            return res.status(400).json({ error: "'interventions' must be an array when provided." });
+        }
 
         if (
             !config ||
@@ -66,13 +72,16 @@ app.post("/api/simulate", (req, res) => {
         const results = {};
 
         for (const algorithmName of uniqueAlgorithms) {
-            results[algorithmName] = runAlgorithm(config, algorithmName);
+            results[algorithmName] = runAlgorithm(config, algorithmName, interventions);
         }
 
         return res.status(200).json(results);
     } catch (error) {
-        console.error("Simulation error:", error);
-        return res.status(500).json({ error: error.message || "Internal server error." });
+        const status = error.status || 500;
+        if (status >= 500) {
+            console.error("Simulation error:", error);
+        }
+        return res.status(status).json({ error: error.message || "Internal server error." });
     }
 });
 

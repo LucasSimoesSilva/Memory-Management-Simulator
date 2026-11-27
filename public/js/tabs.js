@@ -1,10 +1,20 @@
 const ACTIVE_TAB_STORAGE_KEY = "memsim_active_tab";
 const VALID_TABS = ["configure", "simulate", "results", "compare", "tests"];
 
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+/**
+ * Smoothly scrolls the page back to the top (instant when the user prefers reduced motion).
+ */
+function scrollToTop() {
+    window.scrollTo({ top: 0, left: 0, behavior: reducedMotion.matches ? "auto" : "smooth" });
+}
+
 /**
  * Switches the visible SPA panel and updates navigation button states.
+ * Every tab change scrolls back to the top of the page, except the initial restore on load.
  */
-export function switchTab(tabName) {
+export function switchTab(tabName, { scroll = true } = {}) {
     if (!VALID_TABS.includes(tabName)) {
         return;
     }
@@ -30,6 +40,10 @@ export function switchTab(tabName) {
         // Ignore storage errors in restricted environments
     }
 
+    if (scroll) {
+        scrollToTop();
+    }
+
     window.dispatchEvent(new CustomEvent("memsim:tab-changed", { detail: { tabName } }));
 }
 
@@ -38,7 +52,6 @@ export function switchTab(tabName) {
  */
 export function getActiveTab() {
     const activeButton = document.querySelector(".nav-tab.active[data-tab]");
-    // TODO: Move the 'active' class in index.html to 'configure' once the Configure tab is implemented
     return activeButton ? activeButton.dataset.tab : "configure";
 }
 
@@ -71,7 +84,7 @@ function initTabs() {
         // Use default active tab from HTML
     }
 
-    switchTab(initialTab);
+    switchTab(initialTab, { scroll: false });
 }
 
 if (document.readyState === "loading") {

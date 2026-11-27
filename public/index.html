@@ -8,11 +8,14 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
         rel="stylesheet" />
 
     <link rel="stylesheet" href="css/global.css" />
     <link rel="stylesheet" href="css/compare.css" />
+    <link rel="stylesheet" href="css/simulate.css" />
+    <link rel="stylesheet" href="css/configure.css" />
 </head>
 
 <body>
@@ -37,23 +40,421 @@
 
         <!-- NAVIGATION TABS -->
         <nav class="nav-tabs" aria-label="Navegação principal">
-            <button type="button" class="nav-tab" data-tab="configure">Configurar</button>
+            <button type="button" class="nav-tab active" data-tab="configure">Configurar</button>
             <button type="button" class="nav-tab" data-tab="simulate">Simular</button>
             <button type="button" class="nav-tab" data-tab="results">Resultados</button>
-            <button type="button" class="nav-tab active" data-tab="compare">Comparar</button>
+            <button type="button" class="nav-tab" data-tab="compare">Comparar</button>
             <button type="button" class="nav-tab" data-tab="tests">Testes</button>
         </nav>
     </header>
 
     <main class="container">
 
-        <section id="tab-configure" class="tab-panel" hidden></section>
-        <section id="tab-simulate" class="tab-panel" hidden></section>
+        <!-- CONFIGURE TAB -->
+        <section id="tab-configure" class="tab-panel active" aria-labelledby="cfg-title">
+
+            <div class="page-header cfg-reveal" style="--i: 0;">
+                <div>
+                    <h2 id="cfg-title">Configurar Simulação</h2>
+                    <p class="subtitle">Defina a memória, escolha o algoritmo de alocação e cadastre a sequência de eventos.
+                    </p>
+                </div>
+                <button type="button" id="cfg-btn-reset" class="btn cfg-btn-outline cfg-btn-reset" disabled>
+                    <span class="icon icon--restart" aria-hidden="true"></span>
+                    Limpar configuração
+                </button>
+            </div>
+
+            <!-- Info banner (e.g. test case loaded from the Tests tab) -->
+            <div id="cfg-info-banner" class="alert-banner cfg-info-banner hidden" role="status">
+                <p id="cfg-info-text"></p>
+                <button type="button" id="cfg-info-close" class="btn btn-sm cfg-btn-outline">Fechar</button>
+            </div>
+
+            <div class="cfg-grid">
+
+                <!-- MEMORY PARAMETERS -->
+                <article class="card cfg-params-card cfg-reveal" style="--i: 1;">
+                    <h3 class="card-title">Parâmetros da memória</h3>
+
+                    <div class="cfg-field-row">
+                        <div class="cfg-field">
+                            <label for="cfg-total">Memória total (KB)</label>
+                            <input id="cfg-total" class="cfg-input" type="text" inputmode="numeric" autocomplete="off"
+                                placeholder="ex.: 1024" aria-describedby="cfg-total-error" />
+                            <p id="cfg-total-error" class="cfg-field-error" hidden></p>
+                        </div>
+                        <div class="cfg-field">
+                            <label for="cfg-os">Reservado ao SO (KB)</label>
+                            <input id="cfg-os" class="cfg-input" type="text" inputmode="numeric" autocomplete="off"
+                                placeholder="ex.: 128" aria-describedby="cfg-os-error" />
+                            <p id="cfg-os-error" class="cfg-field-error" hidden></p>
+                        </div>
+                    </div>
+
+                    <div class="cfg-available">
+                        <span>Área disponível para processos</span>
+                        <output id="cfg-available" for="cfg-total cfg-os" aria-live="polite">-- preencha os campos</output>
+                    </div>
+
+                    <fieldset class="cfg-section">
+                        <legend class="cfg-section-title">Modo de particionamento</legend>
+                        <div class="cfg-segmented" id="cfg-mode">
+                            <input type="radio" name="cfg-mode" id="cfg-mode-dynamic" value="dynamic" checked />
+                            <label for="cfg-mode-dynamic">Partições variáveis</label>
+                            <input type="radio" name="cfg-mode" id="cfg-mode-fixed" value="fixed" />
+                            <label for="cfg-mode-fixed">Partições fixas</label>
+                            <span class="cfg-segmented-thumb" aria-hidden="true"></span>
+                        </div>
+                        <p id="cfg-mode-help" class="cfg-help">Cada processo recebe exatamente o espaço que pede. As
+                            lacunas entre processos podem gerar fragmentação externa.</p>
+
+                        <div id="cfg-partitions" class="cfg-partitions" aria-hidden="true">
+                            <div class="cfg-partitions-inner">
+                                <label for="cfg-partitions-input" class="cfg-section-title">Tamanho das partições (KB,
+                                    separado por vírgula)</label>
+                                <input id="cfg-partitions-input" class="cfg-input cfg-input--mono" type="text"
+                                    autocomplete="off" placeholder="ex.: 100, 200, 256, 340"
+                                    aria-describedby="cfg-partitions-sum" />
+                                <div id="cfg-partitions-preview" class="cfg-partitions-preview" aria-hidden="true"></div>
+                                <p id="cfg-partitions-sum" class="cfg-partitions-sum" aria-live="polite"></p>
+                                <button type="button" id="cfg-split-equal" class="cfg-link">Dividir em 4 partes
+                                    iguais</button>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="cfg-section">
+                        <legend class="cfg-section-title">Algoritmo de alocação</legend>
+                        <div class="cfg-algorithms">
+                            <label class="cfg-algorithm">
+                                <input type="radio" name="cfg-algorithm" value="first-fit" checked />
+                                <span class="cfg-radio" aria-hidden="true"></span>
+                                <span class="cfg-algorithm-text">
+                                    <strong>First Fit</strong>
+                                    <span data-desc-dynamic="Usa a primeira lacuna que comporta o processo."
+                                        data-desc-fixed="Usa a primeira partição livre que comporta o processo.">Usa a
+                                        primeira lacuna que comporta o processo.</span>
+                                </span>
+                            </label>
+                            <label class="cfg-algorithm">
+                                <input type="radio" name="cfg-algorithm" value="best-fit" />
+                                <span class="cfg-radio" aria-hidden="true"></span>
+                                <span class="cfg-algorithm-text">
+                                    <strong>Best Fit</strong>
+                                    <span data-desc-dynamic="Usa a menor lacuna que comporta o processo."
+                                        data-desc-fixed="Usa a menor partição livre que comporta o processo.">Usa a
+                                        menor lacuna que comporta o processo.</span>
+                                </span>
+                            </label>
+                            <label class="cfg-algorithm">
+                                <input type="radio" name="cfg-algorithm" value="worst-fit" />
+                                <span class="cfg-radio" aria-hidden="true"></span>
+                                <span class="cfg-algorithm-text">
+                                    <strong>Worst Fit</strong>
+                                    <span data-desc-dynamic="Usa a maior lacuna disponível."
+                                        data-desc-fixed="Usa a maior partição livre disponível.">Usa a maior lacuna
+                                        disponível.</span>
+                                </span>
+                            </label>
+                        </div>
+                    </fieldset>
+                </article>
+
+                <!-- EVENT SEQUENCE -->
+                <article class="card cfg-events-card cfg-reveal" style="--i: 2;">
+                    <h3 class="card-title">Sequência de eventos</h3>
+
+                    <form id="cfg-event-form" class="cfg-event-form" novalidate>
+                        <div class="cfg-form-grid">
+                            <div class="cfg-field">
+                                <label for="cfg-event-type">Tipo de evento</label>
+                                <span class="cfg-select">
+                                    <select id="cfg-event-type" class="cfg-input">
+                                        <option value="allocate" selected>Alocar</option>
+                                        <option value="free">Liberar</option>
+                                    </select>
+                                    <span class="icon icon--chevron" aria-hidden="true"></span>
+                                </span>
+                            </div>
+
+                            <div class="cfg-field">
+                                <label for="cfg-event-process" id="cfg-event-process-label">Processo (ID)</label>
+                                <input id="cfg-event-process" class="cfg-input cfg-input--mono" type="text"
+                                    autocomplete="off" maxlength="8" placeholder="ex.: P8"
+                                    aria-describedby="cfg-event-process-error" />
+                                <span class="cfg-select" id="cfg-event-process-select-wrap" hidden>
+                                    <select id="cfg-event-process-select" class="cfg-input cfg-input--mono"
+                                        aria-labelledby="cfg-event-process-label"
+                                        aria-describedby="cfg-event-process-error"></select>
+                                    <span class="icon icon--chevron" aria-hidden="true"></span>
+                                </span>
+                                <p id="cfg-event-process-error" class="cfg-field-error" hidden></p>
+                            </div>
+
+                            <div class="cfg-field cfg-field--size" id="cfg-size-field">
+                                <label for="cfg-event-size">Tamanho (KB)</label>
+                                <input id="cfg-event-size" class="cfg-input cfg-input--mono" type="text"
+                                    inputmode="numeric" autocomplete="off" placeholder="ex.: 120"
+                                    aria-describedby="cfg-size-hint cfg-event-size-error" />
+                                <p id="cfg-size-hint" class="cfg-hint">Preencha a memória primeiro</p>
+                                <p id="cfg-event-size-error" class="cfg-field-error" hidden></p>
+                            </div>
+                        </div>
+
+                        <div class="cfg-form-actions">
+                            <button type="submit" id="cfg-btn-add" class="btn btn-primary cfg-btn-add">+ Adicionar
+                                evento</button>
+                        </div>
+
+                        <p id="cfg-form-help" class="cfg-help">Preencha o processo e o tamanho para adicionar o evento à
+                            sequência.</p>
+                        <p id="cfg-form-banner" class="cfg-form-banner" role="alert" hidden>Corrija o campo para
+                            continuar.</p>
+                    </form>
+
+                    <!-- Empty state -->
+                    <div id="cfg-empty" class="cfg-empty">
+                        <span class="icon icon--empty cfg-empty-icon" aria-hidden="true"></span>
+                        <p class="cfg-empty-title">Nenhum evento cadastrado</p>
+                        <p class="cfg-empty-text">Adicione eventos de alocação e liberação no formulário acima, ou carregue
+                            um caso de teste pronto para começar mais rápido.</p>
+                        <button type="button" id="cfg-btn-sample" class="btn cfg-btn-outline cfg-btn-sample">Carregar Caso
+                            1</button>
+                    </div>
+
+                    <!-- Event table -->
+                    <div id="cfg-events-frame" class="table-wrapper cfg-events-frame" hidden>
+                        <table class="data-table cfg-events-table">
+                            <thead>
+                                <tr>
+                                    <th class="cfg-col-index">#</th>
+                                    <th>Evento</th>
+                                    <th>Processo</th>
+                                    <th>Tamanho</th>
+                                    <th class="cfg-col-actions">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cfg-events-body"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Undo toast -->
+                    <div id="cfg-toast" class="cfg-toast" role="status" hidden>
+                        <p id="cfg-toast-text"></p>
+                        <button type="button" id="cfg-toast-undo" class="cfg-link">Desfazer</button>
+                        <span class="cfg-toast-progress" aria-hidden="true"></span>
+                    </div>
+
+                    <p class="cfg-rules">Regras: tamanho inteiro maior que 0 e até a área disponível - um ID não pode ser
+                        alocado de novo antes de ser liberado - só é possível liberar processos já alocados.</p>
+                </article>
+            </div>
+
+            <!-- ACTION BAR -->
+            <div class="card cfg-actionbar cfg-reveal" style="--i: 3;">
+                <div class="cfg-actionbar-text">
+                    <p id="cfg-summary" aria-live="polite">Nenhum evento cadastrado - cadastre ao menos uma alocação para
+                        iniciar</p>
+                    <p id="cfg-pending" class="cfg-pending" hidden>Alterações ainda não aplicadas</p>
+                </div>
+                <div class="cfg-actionbar-buttons">
+                    <button type="button" id="cfg-btn-compare" class="btn cfg-btn-outline" disabled>Comparar os 3
+                        algoritmos</button>
+                    <button type="button" id="cfg-btn-start" class="btn btn-primary" disabled>Iniciar simulação</button>
+                </div>
+            </div>
+        </section>
+        <!-- SIMULATE TAB -->
+        <section id="tab-simulate" class="tab-panel" hidden aria-labelledby="sim-title">
+
+            <div class="page-header sim-page-header sim-reveal" style="--i: 0;">
+                <div>
+                    <h2 id="sim-title">Simulação</h2>
+                    <p id="sim-subtitle" class="subtitle">Nenhuma configuração carregada</p>
+                </div>
+                <span id="sim-step-pill" class="sim-step-pill" aria-live="polite" aria-atomic="true">
+                    Passo <span id="sim-step-pill-value">- de -</span>
+                </span>
+            </div>
+
+            <!-- Error banner (API failure) -->
+            <div id="sim-error-banner" class="alert-banner sim-error-banner hidden" role="alert">
+                <p id="sim-error-message">Falha na simulação.</p>
+                <div class="sim-error-actions">
+                    <button type="button" id="sim-btn-retry" class="btn btn-primary btn-sm">Tentar novamente</button>
+                    <button type="button" class="btn btn-sm sim-btn-outline" data-go-tab="configure">
+                        Ir para Configurar
+                    </button>
+                </div>
+            </div>
+
+            <!-- CONTROLS -->
+            <div class="card sim-toolbar sim-reveal" style="--i: 1;" role="toolbar" aria-label="Controles da simulação">
+                <button type="button" id="sim-btn-restart" class="sim-ctrl sim-ctrl--restart" aria-label="Reiniciar"
+                    disabled>
+                    <span class="sim-icon sim-icon--restart" aria-hidden="true"></span>
+                    <span class="sim-ctrl-label">Reiniciar</span>
+                </button>
+
+                <button type="button" id="sim-btn-prev" class="sim-ctrl sim-ctrl--prev" aria-label="Passo anterior"
+                    disabled>
+                    <span class="sim-icon sim-icon--chevron sim-icon--left" aria-hidden="true"></span>
+                    <span class="sim-ctrl-label">Passo anterior</span>
+                </button>
+
+                <button type="button" id="sim-btn-play" class="sim-ctrl sim-ctrl--play" aria-label="Reproduzir"
+                    aria-pressed="false" disabled>
+                    <span class="sim-icon sim-icon--play" aria-hidden="true"></span>
+                    <span class="sim-ctrl-label">Reproduzir</span>
+                </button>
+
+                <button type="button" id="sim-btn-next" class="sim-ctrl sim-ctrl--primary sim-ctrl--next" disabled>
+                    <span class="sim-ctrl-label">Próximo passo</span>
+                    <span class="sim-icon sim-icon--chevron sim-icon--right" aria-hidden="true"></span>
+                </button>
+
+                <label class="sim-speed" for="sim-speed">
+                    <span class="sim-speed-label">Velocidade</span>
+                    <span class="sim-select">
+                        <select id="sim-speed" disabled>
+                            <option value="0.5">0.5x</option>
+                            <option value="1" selected>1x</option>
+                            <option value="2">2x</option>
+                            <option value="4">4x</option>
+                        </select>
+                        <span class="sim-icon sim-icon--chevron" aria-hidden="true"></span>
+                    </span>
+                </label>
+
+                <button type="button" id="sim-btn-compact" class="sim-ctrl sim-ctrl--compact" disabled>
+                    <span class="sim-icon sim-icon--compact" aria-hidden="true"></span>
+                    <span class="sim-ctrl-label" id="sim-btn-compact-label">Compactar memória</span>
+                </button>
+            </div>
+
+            <!-- ALTERNATIVE PATH BANNER -->
+            <div id="sim-alt-banner" class="sim-alt-banner" role="status" hidden>
+                <span class="sim-icon sim-icon--branch" aria-hidden="true"></span>
+                <p id="sim-alt-text"></p>
+                <button type="button" id="sim-btn-alt-undo" class="sim-alt-undo">Voltar à sequência original</button>
+            </div>
+
+            <!-- MEMORY MAP -->
+            <article class="card sim-map-card sim-reveal" style="--i: 2;">
+                <header class="sim-card-head">
+                    <h3 class="card-title">Mapa da memória</h3>
+                    <ul class="sim-legend" aria-label="Legenda">
+                        <li><span class="sim-swatch" style="--segment-color: var(--color-os);"></span>Sistema operacional</li>
+                        <li><span class="sim-swatch" style="--segment-color: var(--mem-indigo);"></span>Processo (cada um com
+                            sua cor)</li>
+                        <li><span class="sim-swatch sim-swatch--free"></span>Lacuna livre</li>
+                    </ul>
+                </header>
+
+                <div id="sim-map-empty" class="sim-placeholder sim-map-empty">
+                    <p>A memória aparece aqui depois que você configurar e iniciar uma simulação.</p>
+                    <button type="button" class="btn btn-primary" data-go-tab="configure">Ir para Configurar</button>
+                </div>
+
+                <div id="sim-map" class="sim-map" hidden>
+                    <div id="sim-memory-bar" class="memory-bar sim-memory-bar" role="img"></div>
+                    <div id="sim-memory-ruler" class="memory-ruler sim-memory-ruler" aria-hidden="true"></div>
+                </div>
+                <p id="sim-segment-detail" class="sim-segment-detail" hidden></p>
+            </article>
+
+            <!-- DECISION + INDICATORS -->
+            <div class="sim-grid-top">
+                <article class="card sim-decision-card sim-reveal" style="--i: 3;">
+                    <h3 class="card-title">Decisão do algoritmo</h3>
+                    <p class="sim-current-event">Evento atual: <strong id="sim-current-event">--</strong></p>
+                    <div id="sim-decision-body" class="sim-decision-body" aria-live="polite">
+                        <div class="sim-outcome sim-outcome--empty">
+                            <p class="sim-outcome-title">Aguardando o primeiro evento</p>
+                            <p class="sim-outcome-text">Aqui o simulador explica, passo a passo, quais lacunas o algoritmo
+                                verificou e por que escolheu (ou recusou) cada uma.</p>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="card sim-indicators-card sim-reveal" style="--i: 4;">
+                    <h3 class="card-title">Indicadores do passo</h3>
+                    <dl id="sim-indicators" class="sim-indicators">
+                        <div class="sim-indicator" data-metric="usedMemory">
+                            <dt>Memória ocupada</dt>
+                            <dd>--</dd>
+                        </div>
+                        <div class="sim-indicator" data-metric="utilization">
+                            <dt>Utilização</dt>
+                            <dd>--</dd>
+                        </div>
+                        <div class="sim-indicator" data-metric="freeMemory">
+                            <dt>Memória livre</dt>
+                            <dd>--</dd>
+                        </div>
+                        <div class="sim-indicator" data-metric="largestHole">
+                            <dt>Maior lacuna</dt>
+                            <dd>--</dd>
+                        </div>
+                        <div class="sim-indicator" data-metric="holeCount">
+                            <dt>Nº de lacunas</dt>
+                            <dd>--</dd>
+                        </div>
+                        <div class="sim-indicator" data-metric="externalFragmentation">
+                            <dt>Fragmentação externa</dt>
+                            <dd>--</dd>
+                        </div>
+                    </dl>
+                </article>
+            </div>
+
+            <!-- TIMELINE + PROCESSES -->
+            <div class="sim-grid-bottom">
+                <article class="card sim-timeline-card sim-reveal" style="--i: 5;">
+                    <h3 class="card-title">Linha do tempo</h3>
+                    <div id="sim-timeline-empty" class="sim-placeholder">
+                        <p>Os eventos cadastrados aparecem em ordem aqui.</p>
+                    </div>
+                    <ol id="sim-timeline" class="sim-timeline" hidden></ol>
+                    <ul id="sim-timeline-legend" class="sim-timeline-legend" aria-label="Passos especiais" hidden>
+                    </ul>
+                </article>
+
+                <article class="card sim-processes-card sim-reveal" style="--i: 6;">
+                    <h3 class="card-title">Processos da memória</h3>
+                    <div class="table-wrapper sim-process-frame">
+                        <table class="data-table sim-process-table">
+                            <thead>
+                                <tr>
+                                    <th>Processo</th>
+                                    <th>Endereço base</th>
+                                    <th>Endereço final</th>
+                                    <th>Tamanho</th>
+                                    <th class="sim-col-action">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sim-process-body">
+                                <tr>
+                                    <td colspan="5" class="empty-table-cell">Nenhum processo na memória.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="sim-processes-footer">
+                        <button type="button" id="sim-btn-results" class="btn btn-primary" data-go-tab="results" hidden>
+                            Ver resultados finais
+                        </button>
+                    </div>
+                </article>
+            </div>
+
+        </section>
         <section id="tab-results" class="tab-panel" hidden></section>
         <section id="tab-tests" class="tab-panel" hidden></section>
 
         <!-- COMPARE TAB -->
-        <section id="tab-compare" class="tab-panel active">
+        <section id="tab-compare" class="tab-panel" hidden>
 
             <div class="page-header">
                 <div>
@@ -277,6 +678,8 @@
 
     <script type="module" src="js/tabs.js"></script>
     <script type="module" src="js/compare.js"></script>
+    <script type="module" src="js/simulate.js"></script>
+    <script type="module" src="js/configure.js"></script>
 </body>
 
 </html>
