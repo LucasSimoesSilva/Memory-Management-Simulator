@@ -30,7 +30,14 @@ const MODE_HELP = {
 
 const FORM_HELP = {
     allocate: "Preencha o processo e o tamanho para adicionar o evento à sequência.",
-    free: "Escolha um processo alocado para liberá-lo."
+    free: "Escolha um processo alocado para liberá-lo.",
+    compact: "A compactação junta todas as lacunas livres em uma só. Não precisa de processo nem de tamanho."
+};
+
+const EVENT_PILLS = {
+    allocate: { label: "Alocar", className: "allocate" },
+    free: { label: "Liberar", className: "free" },
+    compact: { label: "Compactar", className: "compact" }
 };
 
 const TOAST_MS = 6000;
@@ -111,7 +118,6 @@ function setFieldError(input, errorNode, message, { warning = false, shake = fal
 /** Copies draft values into the inputs (only on load/reset, never while typing). */
 function syncInputs() {
     el.total.value = draft.totalMemory;
-    el.os.value = draft.osSize;
     el.partitionsInput.value = draft.partitionsText;
     el.modeInputs.forEach((input) => {
         input.checked = input.value === draft.partitionType;
@@ -137,14 +143,6 @@ function renderParams(context) {
     const { params } = context;
 
     setFieldError(el.total, el.totalError, view.touched.has("totalMemory") ? params.errors.totalMemory : "");
-    setFieldError(el.os, el.osError, view.touched.has("osSize") ? params.errors.osSize : "");
-
-    const text = params.ok ? `${params.area} KB` : "-- preencha os campos";
-    if (el.available.textContent !== text) {
-        el.available.textContent = text;
-        restartAnimation(el.available, "is-ticking");
-    }
-    el.available.classList.toggle("is-empty", !params.ok);
 
     el.sizeHint.textContent = params.ok ? `Inteiro de 1 a ${params.area} KB` : "Preencha a memória primeiro";
 }
@@ -165,6 +163,14 @@ function renderMode(context) {
     el.algorithmDescriptions.forEach((node) => {
         node.textContent = fixed ? node.dataset.descFixed : node.dataset.descDynamic;
     });
+
+    // "Compactar memória" only exists for variable partitions
+    el.compactOption.hidden = fixed;
+    el.compactOption.disabled = fixed;
+    if (fixed && el.eventType.value === "compact") {
+        el.eventType.value = "allocate";
+        clearFormErrors();
+    }
 }
 
 function renderPartitions(context) {
@@ -190,10 +196,10 @@ function renderPartitions(context) {
     const messages = {
         empty: "Informe os tamanhos das partições.",
         invalid: "Use apenas inteiros positivos separados por vírgula.",
-        unknown: `Soma: ${partitions.sum} KB - preencha a memória para comparar com a área disponível`,
-        equal: `Soma: ${partitions.sum} KB - igual à área disponível`,
+        unknown: `Soma: ${partitions.sum} KB - preencha a memória total para comparar`,
+        equal: `Soma: ${partitions.sum} KB - igual à memória total`,
         under: `Soma: ${partitions.sum} KB - ${partitions.leftover} KB ficam sem partição`,
-        over: `Soma: ${partitions.sum} KB - excede a área disponível em ${partitions.excess} KB`
+        over: `Soma: ${partitions.sum} KB - excede a memória total em ${partitions.excess} KB`
     };
 
     el.partitionsSum.textContent = messages[partitions.status];
@@ -208,11 +214,14 @@ function renderPartitions(context) {
 function renderForm(context, sequence) {
     const type = el.eventType.value;
     const isFree = type === "free";
+    const isCompact = type === "compact";
 
-    // Process field: free text for allocations, select of active processes for frees
+    // Process field: free text for allocations, select of active processes for frees,
+    // and no process/size at all for a compaction
+    el.processField.classList.toggle("is-hidden", isCompact);
     el.processInput.hidden = isFree;
     el.processSelectWrap.hidden = !isFree;
-    el.sizeField.classList.toggle("is-hidden", isFree);
+    el.sizeField.classList.toggle("is-hidden", isFree || isCompact);
     el.formHelp.textContent = FORM_HELP[type];
     el.processInput.placeholder = `ex.: ${suggestNextId(draft.events)}`;
 
@@ -243,9 +252,9 @@ function renderTable(sequence) {
     el.eventsBody.innerHTML = draft.events
         .map((event, index) => {
             const row = sequence.rows[index];
-            const isFree = event.type === "free";
-            const color = getProcessColor(event.process, appState.config);
-            const label = `${isFree ? "Liberar" : "Alocar"} ${event.process}`;
+            const isCompact = event.type === "compact";
+            const pill = EVENT_PILLS[event.type] ?? EVENT_PILLS.allocate;
+            const label = isCompact ? "Compactar memória" : `${pill.label} ${event.process}`;
             const classes = [];
             if (!row.ok) {
                 classes.push("is-invalid");
@@ -258,16 +267,17 @@ function renderTable(sequence) {
             const alert = messages.length > 0
                 ? `<span class="cfg-row-alert${row.ok ? " is-warning" : ""}" title="${escapeHtml(messages.join(" "))}" aria-label="${escapeHtml(messages.join(" "))}">!</span>`
                 : "";
-            const sizeText = isFree ? "--" : `${event.size} KB`;
+            const sizeText = event.type === "allocate" ? `${event.size} KB` : "--";
             const rejectTag = row.rejectedAtLoad ? '<span class="cfg-reject-tag">Rejeitado no carregamento</span>' : "";
+            const processCell = isCompact
+                ? '<span class="cfg-proc cfg-proc--none">--</span>'
+                : `<span class="cfg-proc"><span class="cfg-swatch" style="--segment-color: ${getProcessColor(event.process, appState.config)};"></span>${escapeHtml(event.process)}</span>`;
 
             return `
                 <tr class="${classes.join(" ")}" data-index="${index}" style="--i: ${view.staggerRows ? index : 0};">
                     <td><span class="cfg-row-index">${index + 1}${alert}</span></td>
-                    <td><span class="cfg-pill cfg-pill--${isFree ? "free" : "allocate"}">${isFree ? "Liberar" : "Alocar"}</span></td>
-                    <td data-size="${escapeHtml(sizeText)}">
-                        <span class="cfg-proc"><span class="cfg-swatch" style="--segment-color: ${color};"></span>${escapeHtml(event.process)}</span>
-                    </td>
+                    <td><span class="cfg-pill cfg-pill--${pill.className}">${pill.label}</span></td>
+                    <td data-size="${escapeHtml(isCompact ? "" : sizeText)}">${processCell}</td>
                     <td>${escapeHtml(sizeText)}${rejectTag}</td>
                     <td>
                         <button type="button" class="cfg-delete" data-delete="${index}" aria-label="Remover evento ${index + 1}: ${escapeHtml(label)}">
@@ -293,14 +303,17 @@ function renderActionBar(context, sequence) {
     if (summary.total === 0) {
         text = "Nenhum evento cadastrado - cadastre ao menos uma alocação para iniciar";
     } else {
+        const compactText = summary.compactions > 0
+            ? ` - ${plural(summary.compactions, "compactação", "compactações")}`
+            : "";
         text = `${plural(summary.total, "evento", "eventos")} - ${plural(summary.allocations, "alocação", "alocações")} - ` +
-            `${plural(summary.frees, "liberação", "liberações")} - demanda total de ${summary.demand} KB`;
+            `${plural(summary.frees, "liberação", "liberações")}${compactText} - demanda total de ${summary.demand} KB`;
 
         if (!context.params.ok) {
             text = "Corrija os parâmetros da memória para iniciar.";
             blocked = true;
         } else if (context.fixed && context.partitions?.status === "over") {
-            text = "A soma das partições excede a área disponível.";
+            text = "A soma das partições excede a memória total.";
             blocked = true;
         } else if (context.fixed && !context.partitions?.ok) {
             text = "Defina os tamanhos das partições para iniciar.";
@@ -388,7 +401,8 @@ function handleAddEvent(event) {
 
     const lastRow = el.eventsBody.lastElementChild;
     lastRow?.scrollIntoView({ block: "nearest", behavior: reducedMotion.matches ? "auto" : "smooth" });
-    (type === "free" ? el.processSelect : el.processInput).focus();
+    const focusTarget = { free: el.processSelect, compact: el.btnAdd }[type] ?? el.processInput;
+    focusTarget.focus();
 }
 
 /**
@@ -488,7 +502,7 @@ function loadDraft(nextDraft, { stagger = false, touched = true } = {}) {
     hideToast();
     clearFormErrors();
     draft = nextDraft;
-    view.touched = touched ? new Set(["totalMemory", "osSize"]) : new Set();
+    view.touched = touched ? new Set(["totalMemory"]) : new Set();
     view.staggerRows = stagger;
     el.eventType.value = "allocate";
     el.processInput.value = "";
@@ -502,7 +516,6 @@ function isDraftEmpty(candidate) {
     const empty = createEmptyDraft();
     return (
         String(candidate.totalMemory).trim() === "" &&
-        String(candidate.osSize).trim() === "" &&
         String(candidate.partitionsText).trim() === "" &&
         candidate.partitionType === empty.partitionType &&
         candidate.algorithm === empty.algorithm &&
@@ -596,9 +609,6 @@ function cacheElements() {
     el.infoClose = byId("cfg-info-close");
     el.total = byId("cfg-total");
     el.totalError = byId("cfg-total-error");
-    el.os = byId("cfg-os");
-    el.osError = byId("cfg-os-error");
-    el.available = byId("cfg-available");
     el.modeInputs = [...document.querySelectorAll('input[name="cfg-mode"]')];
     el.modeHelp = byId("cfg-mode-help");
     el.partitions = byId("cfg-partitions");
@@ -615,6 +625,8 @@ function cacheElements() {
     el.processSelect = byId("cfg-event-process-select");
     el.processError = byId("cfg-event-process-error");
     el.sizeField = byId("cfg-size-field");
+    el.processField = byId("cfg-process-field");
+    el.compactOption = byId("cfg-event-type-compact");
     el.size = byId("cfg-event-size");
     el.sizeHint = byId("cfg-size-hint");
     el.sizeError = byId("cfg-event-size-error");
@@ -650,7 +662,6 @@ function bindEvents() {
         });
     };
     bindParam(el.total, "totalMemory");
-    bindParam(el.os, "osSize");
 
     el.modeInputs.forEach((input) =>
         input.addEventListener("change", () => {
@@ -773,9 +784,6 @@ function initConfigureTab() {
 
     if (draft.totalMemory !== "") {
         view.touched.add("totalMemory");
-    }
-    if (draft.osSize !== "") {
-        view.touched.add("osSize");
     }
 
     syncInputs();

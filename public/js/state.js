@@ -20,14 +20,12 @@ export const FALLBACK_PROCESS_COLORS = [
     "#FB923C"
 ];
 
-export const OS_COLOR = "#64748B";
-
 /**
- * Reference scenario ("Caso 1") used by the Figma designs.
+ * Reference scenario ("Caso 1"). 896 KB keeps the same usable memory the Figma designs had
+ * (1024 KB minus 128 KB of OS), so P6 is still refused by external fragmentation.
  */
 export const SAMPLE_CONFIG = {
-    totalMemory: 1024,
-    osSize: 128,
+    totalMemory: 896,
     partitionType: "dynamic",
     algorithm: "first-fit",
     events: [
@@ -199,10 +197,6 @@ export function getApiConfig(config = appState.config) {
 export function getProcessColor(processId, config = appState.config) {
     if (!processId) {
         return "var(--color-free)";
-    }
-
-    if (processId === "SO") {
-        return OS_COLOR;
     }
 
     const configuredColor = config?.processColors?.[processId];

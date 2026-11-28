@@ -23,14 +23,12 @@ export function normalizeId(value) {
 }
 
 /**
- * Validates total memory and OS size. Returns the available area when both are valid.
+ * Validates the total memory. The whole memory is available for processes (no OS reservation).
  */
 export function validateParams(draft) {
     const errors = {};
     const totalText = String(draft?.totalMemory ?? "").trim();
-    const osText = String(draft?.osSize ?? "").trim();
     const totalMemory = parseIntStrict(totalText);
-    const osSize = parseIntStrict(osText);
 
     if (totalText === "") {
         errors.totalMemory = "Informe a memória total.";
@@ -38,21 +36,12 @@ export function validateParams(draft) {
         errors.totalMemory = `Informe um inteiro entre ${LIMITS.minTotalMemory} e ${LIMITS.maxTotalMemory} KB.`;
     }
 
-    if (osText === "") {
-        errors.osSize = "Informe o tamanho reservado ao SO.";
-    } else if (!Number.isFinite(osSize)) {
-        errors.osSize = "Informe um inteiro em KB (pode ser 0).";
-    } else if (!errors.totalMemory && osSize >= totalMemory) {
-        errors.osSize = "O SO precisa ser menor que a memória total.";
-    }
-
     const ok = Object.keys(errors).length === 0;
     return {
         ok,
         errors,
         totalMemory: ok ? totalMemory : null,
-        osSize: ok ? osSize : null,
-        area: ok ? totalMemory - osSize : null
+        area: ok ? totalMemory : null
     };
 }
 
@@ -117,13 +106,19 @@ export function validateSequence(events, context) {
     const rows = [];
     let allocations = 0;
     let frees = 0;
+    let compactions = 0;
     let demand = 0;
 
     (events ?? []).forEach((event, position) => {
         const index = position + 1;
         const row = { index, ok: true, errors: [], warnings: [], rejectedAtLoad: false };
 
-        if (event.type === "allocate") {
+        if (event.type === "compact") {
+            compactions += 1;
+            if (context.fixed) {
+                row.errors.push("A compactação não se aplica a partições fixas.");
+            }
+        } else if (event.type === "allocate") {
             allocations += 1;
             demand += Number(event.size) || 0;
 
@@ -131,7 +126,7 @@ export function validateSequence(events, context) {
                 row.errors.push(`${event.process} já está alocado (evento ${active.get(event.process)}) e ainda não foi liberado.`);
             }
             if (Number.isFinite(context.area) && event.size > context.area) {
-                row.errors.push(`${event.process} (${event.size} KB) excede a área disponível de ${context.area} KB.`);
+                row.errors.push(`${event.process} (${event.size} KB) excede a memória total de ${context.area} KB.`);
             } else if (context.fixed && Number.isFinite(context.largestPartition) && event.size > context.largestPartition) {
                 row.rejectedAtLoad = true;
                 row.warnings.push(`${event.process} (${event.size} KB) é maior que todas as partições: o SO vai rejeitá-lo no carregamento.`);
@@ -153,7 +148,7 @@ export function validateSequence(events, context) {
         rows,
         activeAtEnd: [...active.keys()],
         invalidCount: rows.filter((row) => !row.ok).length,
-        summary: { total: rows.length, allocations, frees, demand }
+        summary: { total: rows.length, allocations, frees, compactions, demand }
     };
 }
 
@@ -163,7 +158,7 @@ export function validateSequence(events, context) {
 export function validateNewEvent(input, events, context) {
     const errors = {};
     const warnings = {};
-    const type = input.type === "free" ? "free" : "allocate";
+    const type = ["free", "compact"].includes(input.type) ? input.type : "allocate";
     const process = normalizeId(input.process);
 
     if (!context.params.ok) {
@@ -171,6 +166,14 @@ export function validateNewEvent(input, events, context) {
     }
     if ((events?.length ?? 0) >= LIMITS.maxEvents) {
         return { ok: false, errors: { form: `A sequência aceita no máximo ${LIMITS.maxEvents} eventos.` }, warnings };
+    }
+
+    // Compaction has no process or size; it only exists for variable partitions
+    if (type === "compact") {
+        if (context.fixed) {
+            return { ok: false, errors: { form: "A compactação não se aplica a partições fixas." }, warnings };
+        }
+        return { ok: true, errors, warnings, event: { type: "compact" } };
     }
 
     const { activeAtEnd } = validateSequence(events, context);
@@ -202,7 +205,7 @@ export function validateNewEvent(input, events, context) {
         } else if (size <= 0) {
             errors.size = "O tamanho precisa ser maior que 0.";
         } else if (size > context.area) {
-            errors.size = `${label} (${size}KB) excede a área disponível de ${context.area} KB.`;
+            errors.size = `${label} (${size}KB) excede a memória total de ${context.area} KB.`;
         } else if (context.fixed && Number.isFinite(context.largestPartition) && size > context.largestPartition) {
             warnings.size = `${label} (${size} KB) é maior que todas as partições: o SO vai rejeitá-lo no carregamento.`;
         }
@@ -240,11 +243,14 @@ export function draftToConfig(draft) {
         return null;
     }
 
-    const events = (draft.events ?? []).map((event) =>
-        event.type === "free"
+    const events = (draft.events ?? []).map((event) => {
+        if (event.type === "compact") {
+            return { type: "compact" };
+        }
+        return event.type === "free"
             ? { type: "free", process: event.process }
-            : { type: "allocate", process: event.process, size: Number(event.size) }
-    );
+            : { type: "allocate", process: event.process, size: Number(event.size) };
+    });
     const sequence = validateSequence(events, context);
     if (sequence.summary.allocations === 0 || sequence.invalidCount > 0 || events.length > LIMITS.maxEvents) {
         return null;
@@ -252,7 +258,6 @@ export function draftToConfig(draft) {
 
     const config = {
         totalMemory: context.params.totalMemory,
-        osSize: context.params.osSize,
         partitionType: context.fixed ? "fixed" : "dynamic",
         algorithm: draft.algorithm || "first-fit",
         events
@@ -269,7 +274,6 @@ export function draftToConfig(draft) {
 export function configToDraft(config) {
     return {
         totalMemory: config?.totalMemory != null ? String(config.totalMemory) : "",
-        osSize: config?.osSize != null ? String(config.osSize) : "",
         partitionType: config?.partitionType === "fixed" ? "fixed" : "dynamic",
         partitionsText: Array.isArray(config?.partitions) ? config.partitions.join(", ") : "",
         algorithm: config?.algorithm || "first-fit",

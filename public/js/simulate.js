@@ -15,7 +15,6 @@ const COUNT_UP_MS = 400;
 const OUTCOME_STATUS = {
     allocated: "Alocado",
     freed: "Liberado",
-    "manual-free": "Liberado",
     refused: "Recusado",
     compacted: "Compactado",
     skipped: "Ignorado",
@@ -30,16 +29,11 @@ const HOLE_BADGES = {
     occupied: "Ocupada"
 };
 
-/** Steps that are not part of the configured sequence (C, L, F). */
+/**
+ * Steps that are not part of the configured sequence. Compaction is now a regular (numbered)
+ * event of the sequence, so only F remains.
+ */
 const SPECIAL_STEPS = {
-    C: {
-        name: "Compactação",
-        description: "a memória foi compactada nesse ponto (botão Compactar memória)"
-    },
-    L: {
-        name: "Liberação manual",
-        description: "um processo foi liberado fora da sequência (botão Liberar na tabela)"
-    },
     F: {
         name: "Alocação da fila",
         description: "um processo da fila de espera passou a caber e foi alocado automaticamente"
@@ -47,7 +41,6 @@ const SPECIAL_STEPS = {
 };
 
 const LEGEND_ITEMS = {
-    os: { label: "Sistema operacional", swatch: 'style="--segment-color: var(--color-os);"' },
     process: { label: "Processo (cada um com sua cor)", swatch: 'style="--segment-color: var(--mem-indigo);"' },
     free: { label: "Lacuna livre", className: "sim-swatch--free" },
     freePartition: { label: "Partição livre", className: "sim-swatch--free" },
@@ -104,10 +97,7 @@ function currentAlgorithm() {
 }
 
 function activeTrail() {
-    if (!session) {
-        return null;
-    }
-    return session.branch === "alternative" && session.alternative ? session.alternative : session.original;
+    return session ? session.original : null;
 }
 
 function trailLength() {
@@ -132,18 +122,13 @@ function isFixed() {
     return (activeTrail()?.partitionType ?? appState.config?.partitionType) === "fixed";
 }
 
-function firstInterventionPoint() {
-    const list = session?.alternative?.interventions ?? [];
-    return list.length > 0 ? Math.min(...list.map((item) => item.afterStep)) : Infinity;
-}
-
 function eventText(step) {
     const event = step.event ?? {};
     if (event.type === "compact") {
         return "Compactar memória";
     }
     if (event.type === "free") {
-        return event.source === "manual" ? `Liberar ${event.process} (manual)` : `Liberar ${event.process}`;
+        return `Liberar ${event.process}`;
     }
     return event.source === "queue"
         ? `Alocar ${event.process} da fila (${event.size} KB)`
@@ -151,9 +136,6 @@ function eventText(step) {
 }
 
 function segmentKey(block) {
-    if (block.isOS) {
-        return "os";
-    }
     if (block.isFree || block.isUnused) {
         return `free-${block.start}`;
     }
@@ -161,9 +143,6 @@ function segmentKey(block) {
 }
 
 function blockName(block) {
-    if (block.isOS) {
-        return "SO";
-    }
     if (block.isUnused) {
         return "Não particionado";
     }
@@ -189,15 +168,14 @@ function persist() {
 /* Data loading                                                        */
 /* ------------------------------------------------------------------ */
 
-async function requestTrail(interventions) {
+async function requestTrail() {
     const algorithm = currentAlgorithm();
     const response = await fetch("/api/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             config: getApiConfig(appState.config),
-            algorithms: [algorithm],
-            interventions
+            algorithms: [algorithm]
         })
     });
 
@@ -246,7 +224,7 @@ async function loadSession() {
     renderAll();
 
     try {
-        const original = await requestTrail([]);
+        const original = await requestTrail();
         if (token !== view.requestToken) {
             return;
         }
@@ -254,8 +232,6 @@ async function loadSession() {
             configHash,
             algorithm: currentAlgorithm(),
             original,
-            alternative: null,
-            branch: "original",
             cursor: 0,
             speed: 1
         };
@@ -277,51 +253,6 @@ async function loadSession() {
     }
 }
 
-async function addIntervention(item) {
-    if (!session || view.busy) {
-        return;
-    }
-    stopPlayback();
-
-    const cursor = session.cursor;
-    const kept = session.branch === "alternative" && session.alternative
-        ? session.alternative.interventions.filter((intervention) => intervention.afterStep < cursor)
-        : [];
-    const interventions = [...kept, { ...item, afterStep: cursor }];
-
-    setBusy(true);
-    hideError();
-    renderToolbar();
-
-    try {
-        const alternative = await requestTrail(interventions);
-        session.alternative = { ...alternative, interventions };
-        session.branch = "alternative";
-        session.cursor = Math.min(cursor + 1, alternative.steps.length);
-        persist();
-        setBusy(false);
-        renderAll({ direction: 1 });
-    } catch (error) {
-        console.error("Intervention request failed:", error);
-        setBusy(false);
-        showError(`Falha na simulação: ${error.message}`, () => addIntervention(item));
-        renderAll();
-    }
-}
-
-function undoAlternative() {
-    if (!session || session.branch !== "alternative") {
-        return;
-    }
-    stopPlayback();
-    const point = firstInterventionPoint();
-    session.branch = "original";
-    session.alternative = null;
-    session.cursor = Number.isFinite(point) ? point : session.cursor;
-    persist();
-    renderAll({ direction: -1 });
-}
-
 /* ------------------------------------------------------------------ */
 /* Navigation and playback                                             */
 /* ------------------------------------------------------------------ */
@@ -336,12 +267,6 @@ function goTo(target, { keepPlaying = false } = {}) {
 
     const length = trailLength();
     const next = Math.max(0, Math.min(length, target));
-
-    // Going back to (or before) the first intervention point leaves the alternative path
-    if (session.branch === "alternative" && next <= firstInterventionPoint()) {
-        session.branch = "original";
-        session.alternative = null;
-    }
 
     // direction: 1 = single step forward (full step animations), other non-zero values = jumps
     const delta = next - session.cursor;
@@ -368,8 +293,6 @@ function restart() {
         return;
     }
     stopPlayback();
-    session.branch = "original";
-    session.alternative = null;
     goTo(0);
 }
 
@@ -436,13 +359,6 @@ function setBusy(isBusy) {
     }
 }
 
-function showError(message, retry) {
-    view.errorMessage = message;
-    view.retry = retry;
-    el.errorMessage.textContent = message;
-    el.errorBanner.classList.remove("hidden");
-}
-
 function hideError() {
     el.errorBanner.classList.add("hidden");
 }
@@ -451,7 +367,6 @@ function renderAll({ direction = 0 } = {}) {
     renderHeader(direction);
     renderErrorBanner();
     renderToolbar();
-    renderAltBanner();
     renderMap(direction);
     renderDecision(direction);
     renderIndicators(direction);
@@ -466,9 +381,7 @@ function renderHeader(direction) {
         const fixedMode = config.partitionType === "fixed";
         const partitionCount = Array.isArray(config.partitions) && config.partitions.length > 0 ? config.partitions.length : 4;
         const partition = fixedMode ? `Partições fixas · ${partitionCount} partições` : "Partições variáveis";
-        const osSize = Number(config.osSize ?? 0);
-        el.subtitle.textContent =
-            `${ALGORITHM_LABELS[currentAlgorithm()]} · ${partition} · ${config.totalMemory} KB (${osSize} KB do SO)`;
+        el.subtitle.textContent = `${ALGORITHM_LABELS[currentAlgorithm()]} · ${partition} · ${config.totalMemory} KB`;
     } else {
         el.subtitle.textContent = "Nenhuma configuração carregada";
     }
@@ -477,11 +390,10 @@ function renderHeader(direction) {
     if (view.status === "ready" && session) {
         const total = config.events.length;
         const step = stepAt(session.cursor);
-        const alt = session.branch === "alternative" ? " (alt.)" : "";
         if (!step) {
             pill = `0 de ${total}`;
         } else if (/^\d+$/.test(step.label)) {
-            pill = `${step.label} de ${total}${alt}`;
+            pill = `${step.label} de ${total}`;
         } else {
             // Special steps get a readable name: "Passo F · Alocação da fila"
             const special = SPECIAL_STEPS[step.label];
@@ -510,9 +422,6 @@ function renderToolbar() {
     const ready = view.status === "ready" && Boolean(session) && !view.busy;
     const cursor = session?.cursor ?? 0;
     const length = trailLength();
-    const step = stepAt(cursor);
-    const snapshot = ready ? snapshotAt(cursor) : null;
-    const isAlternative = session?.branch === "alternative";
 
     el.btnRestart.disabled = !ready || cursor === 0;
     el.btnPrev.disabled = !ready || cursor === 0;
@@ -527,50 +436,6 @@ function renderToolbar() {
     el.btnPlayLabel.textContent = view.playing ? "Pausar" : "Reproduzir";
     el.btnPlayIcon.classList.toggle("sim-icon--play", !view.playing);
     el.btnPlayIcon.classList.toggle("sim-icon--pause", view.playing);
-
-    // Compact / undo
-    el.btnCompact.hidden = isFixed();
-    el.btnCompact.classList.toggle("is-undo", isAlternative);
-    const wasSuggested = el.btnCompact.classList.contains("is-suggested");
-    const suggested = !isAlternative && step?.outcome === "refused" && step.refusalReason === "external-fragmentation";
-    el.btnCompact.classList.toggle("is-suggested", Boolean(ready && suggested));
-    if (ready && suggested && !wasSuggested) {
-        restartAnimation(el.btnCompact, "is-suggested");
-    }
-
-    if (isAlternative) {
-        const hasCompact = session.alternative?.interventions.some((item) => item.type === "compact");
-        el.btnCompactLabel.textContent = hasCompact ? "Desfazer compactação" : "Desfazer alterações";
-        el.btnCompact.disabled = !ready || view.playing;
-    } else {
-        el.btnCompactLabel.textContent = "Compactar memória";
-        el.btnCompact.disabled = !ready || view.playing || !snapshot || snapshot.metrics.holeCount < 2;
-    }
-}
-
-function renderAltBanner() {
-    if (!session || session.branch !== "alternative" || !session.alternative) {
-        el.altBanner.hidden = true;
-        return;
-    }
-
-    const steps = session.alternative.steps;
-    const labelAt = (position) => (position === 0 ? "0" : steps[position - 1]?.label ?? String(position));
-    const parts = session.alternative.interventions.map((item) =>
-        item.type === "compact"
-            ? `a memória foi compactada no passo ${labelAt(item.afterStep)}`
-            : `${item.process} foi liberado manualmente no passo ${labelAt(item.afterStep)}`
-    );
-    const types = new Set(session.alternative.interventions.map((item) => item.type));
-    const tail = types.size > 1 ? "essas alterações" : types.has("compact") ? "compactar" : "essa liberação";
-
-    const joined = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} e ${parts[parts.length - 1]}` : parts[0];
-    el.altText.textContent = `Caminho alternativo - ${joined}. A sequência original segue sem ${tail}.`;
-
-    if (el.altBanner.hidden) {
-        el.altBanner.hidden = false;
-        restartAnimation(el.altBanner, "is-shown");
-    }
 }
 
 /* --- Memory map ---------------------------------------------------- */
@@ -640,7 +505,7 @@ function updateSegmentSizes() {
  * internal fragmentation and (when present) the unpartitioned area.
  */
 function renderLegend(blocks, fixed) {
-    const keys = fixed ? ["os", "process", "freePartition", "internal"] : ["os", "process", "free"];
+    const keys = fixed ? ["process", "freePartition", "internal"] : ["process", "free"];
     if (fixed && blocks.some((block) => block.isUnused)) {
         keys.push("unused");
     }
@@ -722,7 +587,7 @@ function renderMap(direction) {
             }
 
             if (animate && block.isFree && step?.affected && block.start <= step.affected.start
-                && block.end > step.affected.start && (step.outcome === "freed" || step.outcome === "manual-free")) {
+                && block.end > step.affected.start && step.outcome === "freed") {
                 classes.push("is-freed");
                 style.push(`--freed-color: ${getProcessColor(step.affected.process, appState.config)}`);
             }
@@ -1024,14 +889,13 @@ function renderProcesses(direction = 0) {
     const snapshot = view.status === "ready" && session ? snapshotAt(session.cursor) : null;
     const processes = snapshot
         ? snapshot.blocks
-            .filter((block) => !block.isFree && !block.isOS && !block.isUnused)
+            .filter((block) => !block.isFree && !block.isUnused)
             .sort((a, b) => a.start - b.start)
         : [];
-    const canFree = Boolean(snapshot) && session.cursor > 0 && !view.playing && !view.busy;
 
     if (processes.length === 0) {
         el.processBody.innerHTML = `
-            <tr class="is-empty-row"><td colspan="5" class="empty-table-cell">Nenhum processo na memória.</td></tr>
+            <tr class="is-empty-row"><td colspan="4" class="empty-table-cell">Nenhum processo na memória.</td></tr>
         `;
         return;
     }
@@ -1060,11 +924,6 @@ function renderProcesses(direction = 0) {
             <td data-label="Endereço base">${block.start}</td>
             <td data-label="Endereço final">${block.end}</td>
             <td data-label="Tamanho">${block.used ?? block.size} KB</td>
-            <td class="sim-td-action" data-label="Ação">
-                <button type="button" class="sim-free-btn" data-free="${escapeHtml(block.process)}" ${canFree ? "" : "disabled"}>
-                    Liberar ${escapeHtml(block.process)}
-                </button>
-            </td>
         `;
         fragment.appendChild(row);
     });
@@ -1144,11 +1003,6 @@ function cacheElements() {
     el.btnPlayIcon = el.btnPlay.querySelector(".sim-icon");
     el.btnNext = byId("sim-btn-next");
     el.speed = byId("sim-speed");
-    el.btnCompact = byId("sim-btn-compact");
-    el.btnCompactLabel = byId("sim-btn-compact-label");
-    el.altBanner = byId("sim-alt-banner");
-    el.altText = byId("sim-alt-text");
-    el.btnAltUndo = byId("sim-btn-alt-undo");
     el.mapEmpty = byId("sim-map-empty");
     el.mapEmptyText = el.mapEmpty.querySelector("p");
     el.mapEmptyButton = el.mapEmpty.querySelector("button");
@@ -1184,16 +1038,6 @@ function bindEvents() {
         }
     });
 
-    el.btnCompact.addEventListener("click", () => {
-        if (session?.branch === "alternative") {
-            undoAlternative();
-        } else {
-            addIntervention({ type: "compact" });
-        }
-    });
-
-    el.btnAltUndo.addEventListener("click", undoAlternative);
-
     el.btnRetry.addEventListener("click", () => {
         hideError();
         const retry = view.retry;
@@ -1214,13 +1058,6 @@ function bindEvents() {
         const button = event.target.closest("[data-position]");
         if (button) {
             goTo(Number(button.dataset.position));
-        }
-    });
-
-    el.processBody.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-free]");
-        if (button && !button.disabled) {
-            addIntervention({ type: "free", process: button.dataset.free });
         }
     });
 

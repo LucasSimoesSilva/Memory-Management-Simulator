@@ -35,18 +35,17 @@ function toPositiveInt(value) {
     return Number.isFinite(num) ? Math.round(num) : NaN;
 }
 
+const EVENT_TYPES = ["allocate", "free", "compact"];
+
 function normalizeConfig(config) {
     const totalMemory = toPositiveInt(config.totalMemory);
-    const osSize = toPositiveInt(config.osSize ?? 0);
 
     if (!(totalMemory > 0)) {
         throw new SimulationError("'totalMemory' must be a positive number.");
     }
-    if (!(osSize >= 0) || osSize >= totalMemory) {
-        throw new SimulationError("'osSize' must be between 0 and 'totalMemory'.");
-    }
 
-    const area = totalMemory - osSize;
+    // The whole memory is available for processes (no OS reservation)
+    const area = totalMemory;
     const partitionType = config.partitionType === "fixed" ? "fixed" : "dynamic";
 
     // Legacy payload support: { processes: [{ id, size }] } becomes a list of allocations
@@ -56,7 +55,11 @@ function normalizeConfig(config) {
     }
 
     events = events.map((event, index) => {
-        const type = event?.type === "free" ? "free" : "allocate";
+        const type = EVENT_TYPES.includes(event?.type) ? event.type : "allocate";
+        if (type === "compact") {
+            return { type };
+        }
+
         const process = String(event?.process ?? "").trim();
         if (!process) {
             throw new SimulationError(`Event ${index + 1} has no process id.`);
@@ -89,11 +92,11 @@ function normalizeConfig(config) {
 
         const sum = partitions.reduce((acc, size) => acc + size, 0);
         if (sum > area) {
-            throw new SimulationError("The sum of 'partitions' exceeds the memory available for processes.");
+            throw new SimulationError("The sum of 'partitions' exceeds 'totalMemory'.");
         }
     }
 
-    return { totalMemory, osSize, area, partitionType, partitions, events };
+    return { totalMemory, area, partitionType, partitions, events };
 }
 
 /* ------------------------------------------------------------------ */
@@ -102,12 +105,9 @@ function normalizeConfig(config) {
 
 function createInitialBlocks(cfg) {
     const blocks = [];
-    if (cfg.osSize > 0) {
-        blocks.push({ start: 0, size: cfg.osSize, kind: "os" });
-    }
 
     if (cfg.partitionType === "fixed") {
-        let cursor = cfg.osSize;
+        let cursor = 0;
         cfg.partitions.forEach((size, index) => {
             blocks.push({ start: cursor, size, kind: "free", partition: index + 1 });
             cursor += size;
@@ -117,14 +117,10 @@ function createInitialBlocks(cfg) {
             blocks.push({ start: cursor, size: cfg.totalMemory - cursor, kind: "unused" });
         }
     } else {
-        blocks.push({ start: cfg.osSize, size: cfg.area, kind: "free" });
+        blocks.push({ start: 0, size: cfg.area, kind: "free" });
     }
 
     return blocks;
-}
-
-function cloneBlocks(blocks) {
-    return blocks.map((block) => ({ ...block }));
 }
 
 function getHoles(blocks) {
@@ -138,9 +134,6 @@ function findProcessBlock(blocks, processId) {
 function blockName(block) {
     if (!block) {
         return null;
-    }
-    if (block.kind === "os") {
-        return "SO";
     }
     if (block.kind === "proc") {
         return block.process;
@@ -179,9 +172,8 @@ function snapshotBlocks(blocks) {
         start: block.start,
         size: block.size,
         end: block.start + block.size,
-        process: block.kind === "proc" ? block.process : block.kind === "os" ? "SO" : null,
+        process: block.kind === "proc" ? block.process : null,
         isFree: block.kind === "free",
-        isOS: block.kind === "os",
         isUnused: block.kind === "unused",
         partition: block.partition ?? null,
         used: block.used ?? null
@@ -330,8 +322,8 @@ function release(blocks, cfg, processId) {
 function compact(blocks, cfg) {
     const holeCountBefore = getHoles(blocks).length;
     const moved = [];
-    const result = blocks.filter((block) => block.kind === "os");
-    let cursor = cfg.osSize;
+    const result = [];
+    let cursor = 0;
 
     blocks
         .filter((block) => block.kind === "proc")
@@ -428,9 +420,9 @@ function describeRejection(cfg, event) {
     return {
         refusalReason: "exceeds-memory",
         decision: {
-            title: `${pid} rejeitado: maior que a memória disponível`,
+            title: `${pid} rejeitado: maior que a memória total`,
             explanation:
-                `${pid} precisa de ${event.size} KB, mas a área para processos tem só ${cfg.area} KB. Mesmo com a memória vazia ele ` +
+                `${pid} precisa de ${event.size} KB, mas a memória tem só ${cfg.area} KB. Mesmo com a memória vazia ele ` +
                 `nunca caberia, então o SO o recusa já no carregamento, em vez de deixá-lo esperando na fila. ${history}`
         }
     };
@@ -498,7 +490,7 @@ function describeRefusal(cfg, event, blocks) {
                 explanation:
                     `Existem ${free} KB livres no total, mas divididos em lacunas de ${joinList(holes.map((hole) => `${hole.size} KB`))}. ` +
                     `Nenhuma tem ${event.size} KB contíguos, então ${pid} vai para a fila de espera. ` +
-                    `A compactação juntaria tudo em uma lacuna de ${free} KB.`
+                    `Um evento de compactação juntaria tudo em uma lacuna de ${free} KB.`
             }
         };
     }
@@ -514,8 +506,8 @@ function describeRefusal(cfg, event, blocks) {
     };
 }
 
-function describeRelease(cfg, pid, info, blocks, manual) {
-    const prefix = manual ? `${pid} liberado manualmente` : `${pid} liberado`;
+function describeRelease(cfg, pid, info, blocks) {
+    const prefix = `${pid} liberado`;
 
     if (cfg.partitionType === "fixed") {
         return {
@@ -572,6 +564,9 @@ function describeCompaction(info, blocks, queue) {
 /* ------------------------------------------------------------------ */
 
 function eventLabel(event) {
+    if (event.type === "compact") {
+        return "Compactar memória";
+    }
     if (event.type === "free") {
         return `Liberar ${event.process}`;
     }
@@ -587,10 +582,10 @@ function describeHoles(blocks) {
 }
 
 /**
- * Runs the full event sequence step by step, applying optional interventions
- * ({ afterStep, type: "compact" | "free", process }) to build an alternative path.
+ * Runs the full event sequence step by step. Events: allocate, free and compact
+ * (compaction only applies to variable partitions).
  */
-export function simulate(config, algorithm, interventions = []) {
+export function simulate(config, algorithm) {
     if (!SUPPORTED_ALGORITHMS.includes(algorithm)) {
         throw new SimulationError(`Unknown algorithm: ${algorithm}`);
     }
@@ -600,14 +595,8 @@ export function simulate(config, algorithm, interventions = []) {
     const steps = [];
     const queue = [];
     const everAllocated = new Set();
-    const manuallyFreed = new Set();
     const rejectedAtLoad = [];
     const divergences = [];
-
-    const pending = (Array.isArray(interventions) ? interventions : [])
-        .map((item, order) => ({ ...item, afterStep: Number(item?.afterStep), order }))
-        .filter((item) => Number.isInteger(item.afterStep) && item.afterStep >= 0)
-        .sort((a, b) => a.afterStep - b.afterStep || a.order - b.order);
 
     const initial = { blocks: snapshotBlocks(blocks), metrics: computeMetrics(blocks, cfg) };
 
@@ -705,43 +694,30 @@ export function simulate(config, algorithm, interventions = []) {
         }
     }
 
-    function applyInterventions() {
-        while (pending.length > 0 && pending[0].afterStep <= steps.length) {
-            const item = pending.shift();
-            if (item.afterStep < steps.length) {
-                continue; // Stale intervention point, ignore it
-            }
-
-            if (item.type === "compact" && cfg.partitionType === "dynamic") {
-                const info = compact(blocks, cfg);
-                pushStep({
-                    label: "C",
-                    event: { type: "compact" },
-                    outcome: "compacted",
-                    moved: info.moved,
-                    decision: describeCompaction(info, blocks, queue)
-                });
-                retryQueue();
-            } else if (item.type === "free") {
-                const processId = String(item.process ?? "");
-                const info = release(blocks, cfg, processId);
-                if (!info) {
-                    continue;
+    function runCompaction(event, label) {
+        if (cfg.partitionType !== "dynamic") {
+            pushStep({
+                label,
+                event,
+                outcome: "skipped",
+                decision: {
+                    title: "Compactação ignorada: partições fixas",
+                    explanation: "Em partições fixas cada processo fica preso à sua partição, então não há lacunas para juntar."
                 }
-                manuallyFreed.add(processId);
-                pushStep({
-                    label: "L",
-                    event: { type: "free", process: processId, source: "manual" },
-                    outcome: "manual-free",
-                    decision: describeRelease(cfg, processId, info, blocks, true),
-                    affected: { process: processId, start: info.hole.start }
-                });
-                retryQueue();
-            }
+            });
+            return;
         }
-    }
 
-    applyInterventions();
+        const info = compact(blocks, cfg);
+        pushStep({
+            label,
+            event,
+            outcome: "compacted",
+            moved: info.moved,
+            decision: describeCompaction(info, blocks, queue)
+        });
+        retryQueue();
+    }
 
     cfg.events.forEach((rawEvent, eventIndex) => {
         const label = String(eventIndex + 1);
@@ -749,6 +725,8 @@ export function simulate(config, algorithm, interventions = []) {
 
         if (event.type === "allocate") {
             runAllocation(event, label, eventIndex + 1);
+        } else if (event.type === "compact") {
+            runCompaction(event, label);
         } else {
             const info = release(blocks, cfg, event.process);
 
@@ -757,7 +735,7 @@ export function simulate(config, algorithm, interventions = []) {
                     label,
                     event,
                     outcome: "freed",
-                    decision: describeRelease(cfg, event.process, info, blocks, false),
+                    decision: describeRelease(cfg, event.process, info, blocks),
                     affected: { process: event.process, start: info.hole.start }
                 });
                 retryQueue();
@@ -770,11 +748,6 @@ export function simulate(config, algorithm, interventions = []) {
                         title: `${event.process} removido da fila de espera`,
                         explanation: `${event.process} ainda não estava na memória, então a liberação apenas o retira da fila de espera.`
                     };
-                } else if (manuallyFreed.has(event.process)) {
-                    decision = {
-                        title: `Liberar ${event.process} ignorado: já liberado`,
-                        explanation: `${event.process} já tinha sido liberado manualmente antes deste passo, então não há nada a liberar.`
-                    };
                 } else {
                     decision = {
                         title: `Liberar ${event.process} ignorado`,
@@ -784,8 +757,6 @@ export function simulate(config, algorithm, interventions = []) {
                 pushStep({ label, event, outcome: "skipped", decision });
             }
         }
-
-        applyInterventions();
     });
 
     const allocationEvents = cfg.events.filter((event) => event.type === "allocate");
@@ -815,8 +786,8 @@ export function simulate(config, algorithm, interventions = []) {
     };
 }
 
-export function runAlgorithm(config, algorithmName, interventions = []) {
-    return simulate(config, algorithmName, interventions);
+export function runAlgorithm(config, algorithmName) {
+    return simulate(config, algorithmName);
 }
 
 export { ALGORITHM_LABELS, formatPercent };

@@ -18,16 +18,15 @@ app.get("/api/help", (_req, res) => {
                 examplePayload: {
                     config: {
                         totalMemory: 1024,
-                        osSize: 128,
                         partitionType: "dynamic",
                         events: [
                             { type: "allocate", process: "P1", size: 200 },
                             { type: "allocate", process: "P2", size: 250 },
-                            { type: "free", process: "P1" }
+                            { type: "free", process: "P1" },
+                            { type: "compact" }
                         ]
                     },
-                    algorithms: ["first-fit", "best-fit"],
-                    interventions: [{ afterStep: 2, type: "compact" }]
+                    algorithms: ["first-fit", "best-fit"]
                 }
             }
         }
@@ -37,11 +36,7 @@ app.get("/api/help", (_req, res) => {
 
 app.post("/api/simulate", (req, res) => {
     try {
-        const { config, algorithms, interventions = [] } = req.body;
-
-        if (!Array.isArray(interventions)) {
-            return res.status(400).json({ error: "'interventions' must be an array when provided." });
-        }
+        const { config, algorithms } = req.body;
 
         if (
             !config ||
@@ -72,7 +67,7 @@ app.post("/api/simulate", (req, res) => {
         const results = {};
 
         for (const algorithmName of uniqueAlgorithms) {
-            results[algorithmName] = runAlgorithm(config, algorithmName, interventions);
+            results[algorithmName] = runAlgorithm(config, algorithmName);
         }
 
         return res.status(200).json(results);

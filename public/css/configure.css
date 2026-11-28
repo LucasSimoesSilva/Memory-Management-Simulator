@@ -124,24 +124,9 @@
     font-weight: 700;
 }
 
-.cfg-field-row {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: auto auto auto;
-    column-gap: 14px;
-}
-
-/* Subgrid keeps both inputs aligned even when one label wraps */
-.cfg-field-row .cfg-field {
-    display: grid;
-    grid-template-rows: subgrid;
-    grid-row: span 3;
-    align-items: end;
-    row-gap: 7px;
-}
-
-.cfg-field-row .cfg-field-error[hidden] {
-    display: none;
+/* Single "Memória total" field (no OS reservation) */
+.cfg-field--memory {
+    margin-bottom: 22px;
 }
 
 .cfg-input {
@@ -273,38 +258,6 @@
     font-size: 0.85rem;
     font-weight: 300;
     line-height: 1.5;
-}
-
-/* --- PARAMETERS CARD --- */
-.cfg-available {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin: 18px 0 22px;
-    padding: 12px 18px;
-    border-radius: 9px;
-    background-color: rgba(11, 4, 27, 0.72);
-    border: 1px solid var(--purple-primary);
-    font-size: 0.82rem;
-    font-weight: 300;
-}
-
-.cfg-available output {
-    font-family: var(--font-mono);
-    font-weight: 700;
-    text-align: right;
-    white-space: nowrap;
-}
-
-.cfg-available output.is-empty {
-    font-family: inherit;
-    font-weight: 600;
-    white-space: normal;
-}
-
-.cfg-available output.is-ticking {
-    animation: cfg-tick var(--dur-fast) var(--ease-out);
 }
 
 .cfg-section {
@@ -561,11 +514,12 @@
     align-items: start;
 }
 
-.cfg-field--size {
+/* Process and size fields slide out when the event type doesn't use them */
+.cfg-form-grid .cfg-field {
     transition: opacity var(--dur-base), transform var(--dur-base) var(--ease-out);
 }
 
-.cfg-field--size.is-hidden {
+.cfg-form-grid .cfg-field.is-hidden {
     opacity: 0;
     transform: translateX(8px);
     pointer-events: none;
@@ -741,6 +695,17 @@
 .cfg-pill--free {
     background-color: var(--status-alt-bg);
     color: var(--status-warning-text);
+}
+
+/* Compaction event: neutral outline, it has no process */
+.cfg-pill--compact {
+    background-color: transparent;
+    color: #C9B8FF;
+    border: 1px dashed var(--purple-vibrant);
+}
+
+.cfg-proc--none {
+    color: var(--text-muted);
 }
 
 .cfg-proc {
@@ -989,7 +954,7 @@
         grid-column: 1 / -1;
     }
 
-    .cfg-field--size.is-hidden {
+    .cfg-form-grid .cfg-field.is-hidden {
         display: none;
     }
 
@@ -1017,11 +982,6 @@
 @media (max-width: 600px) {
     .page-header h2 {
         font-size: 1.5rem;
-    }
-
-    .cfg-field-row {
-        grid-template-columns: minmax(0, 1fr);
-        row-gap: 16px;
     }
 
     .cfg-form-grid {

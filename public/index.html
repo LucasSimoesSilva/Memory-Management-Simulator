@@ -20,6 +20,12 @@
 
 <body>
 
+    <!-- Shown when the app is opened without the server (file://) or the scripts fail to load -->
+    <div id="boot-warning" class="boot-warning" role="alert" hidden>
+        <strong id="boot-warning-title">O simulador precisa ser aberto pelo servidor</strong>
+        <p id="boot-warning-text"></p>
+    </div>
+
     <!-- HEADER -->
     <header class="topbar">
         <div class="brand">
@@ -77,24 +83,12 @@
                 <article class="card cfg-params-card cfg-reveal" style="--i: 1;">
                     <h3 class="card-title">Parâmetros da memória</h3>
 
-                    <div class="cfg-field-row">
-                        <div class="cfg-field">
-                            <label for="cfg-total">Memória total (KB)</label>
-                            <input id="cfg-total" class="cfg-input" type="text" inputmode="numeric" autocomplete="off"
-                                placeholder="ex.: 1024" aria-describedby="cfg-total-error" />
-                            <p id="cfg-total-error" class="cfg-field-error" hidden></p>
-                        </div>
-                        <div class="cfg-field">
-                            <label for="cfg-os">Reservado ao SO (KB)</label>
-                            <input id="cfg-os" class="cfg-input" type="text" inputmode="numeric" autocomplete="off"
-                                placeholder="ex.: 128" aria-describedby="cfg-os-error" />
-                            <p id="cfg-os-error" class="cfg-field-error" hidden></p>
-                        </div>
-                    </div>
-
-                    <div class="cfg-available">
-                        <span>Área disponível para processos</span>
-                        <output id="cfg-available" for="cfg-total cfg-os" aria-live="polite">-- preencha os campos</output>
+                    <div class="cfg-field cfg-field--memory">
+                        <label for="cfg-total">Memória total (KB)</label>
+                        <input id="cfg-total" class="cfg-input" type="text" inputmode="numeric" autocomplete="off"
+                            placeholder="ex.: 1024" aria-describedby="cfg-total-hint cfg-total-error" />
+                        <p id="cfg-total-hint" class="cfg-hint">Toda a memória fica disponível para os processos.</p>
+                        <p id="cfg-total-error" class="cfg-field-error" hidden></p>
                     </div>
 
                     <fieldset class="cfg-section">
@@ -173,12 +167,14 @@
                                     <select id="cfg-event-type" class="cfg-input">
                                         <option value="allocate" selected>Alocar</option>
                                         <option value="free">Liberar</option>
+                                        <!-- Only offered for variable partitions (configure.js toggles it) -->
+                                        <option value="compact" id="cfg-event-type-compact">Compactar memória</option>
                                     </select>
                                     <span class="icon icon--chevron" aria-hidden="true"></span>
                                 </span>
                             </div>
 
-                            <div class="cfg-field">
+                            <div class="cfg-field cfg-field--process" id="cfg-process-field">
                                 <label for="cfg-event-process" id="cfg-event-process-label">Processo (ID)</label>
                                 <input id="cfg-event-process" class="cfg-input cfg-input--mono" type="text"
                                     autocomplete="off" maxlength="8" placeholder="ex.: P8"
@@ -246,7 +242,7 @@
                         <span class="cfg-toast-progress" aria-hidden="true"></span>
                     </div>
 
-                    <p class="cfg-rules">Regras: tamanho inteiro maior que 0 e até a área disponível - um ID não pode ser
+                    <p class="cfg-rules">Regras: tamanho inteiro maior que 0 e até a memória total - um ID não pode ser
                         alocado de novo antes de ser liberado - só é possível liberar processos já alocados.</p>
                 </article>
             </div>
@@ -326,18 +322,6 @@
                         <span class="sim-icon sim-icon--chevron" aria-hidden="true"></span>
                     </span>
                 </label>
-
-                <button type="button" id="sim-btn-compact" class="sim-ctrl sim-ctrl--compact" disabled>
-                    <span class="sim-icon sim-icon--compact" aria-hidden="true"></span>
-                    <span class="sim-ctrl-label" id="sim-btn-compact-label">Compactar memória</span>
-                </button>
-            </div>
-
-            <!-- ALTERNATIVE PATH BANNER -->
-            <div id="sim-alt-banner" class="sim-alt-banner" role="status" hidden>
-                <span class="sim-icon sim-icon--branch" aria-hidden="true"></span>
-                <p id="sim-alt-text"></p>
-                <button type="button" id="sim-btn-alt-undo" class="sim-alt-undo">Voltar à sequência original</button>
             </div>
 
             <!-- MEMORY MAP -->
@@ -345,7 +329,6 @@
                 <header class="sim-card-head">
                     <h3 class="card-title">Mapa da memória</h3>
                     <ul class="sim-legend" aria-label="Legenda">
-                        <li><span class="sim-swatch" style="--segment-color: var(--color-os);"></span>Sistema operacional</li>
                         <li><span class="sim-swatch" style="--segment-color: var(--mem-indigo);"></span>Processo (cada um com
                             sua cor)</li>
                         <li><span class="sim-swatch sim-swatch--free"></span>Lacuna livre</li>
@@ -431,12 +414,11 @@
                                     <th>Endereço base</th>
                                     <th>Endereço final</th>
                                     <th>Tamanho</th>
-                                    <th class="sim-col-action">Ação</th>
                                 </tr>
                             </thead>
                             <tbody id="sim-process-body">
                                 <tr>
-                                    <td colspan="5" class="empty-table-cell">Nenhum processo na memória.</td>
+                                    <td colspan="4" class="empty-table-cell">Nenhum processo na memória.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -675,6 +657,36 @@
 
         </section>
     </main>
+
+    <!--
+        Classic (non-module) script on purpose: it still runs when the page is opened as a file,
+        where browsers block ES modules. Explains how to start the app instead of failing silently.
+    -->
+    <script>
+        (function () {
+            var warning = document.getElementById("boot-warning");
+            var title = document.getElementById("boot-warning-title");
+            var text = document.getElementById("boot-warning-text");
+            var howTo = "No terminal, dentro da pasta do projeto, rode <code>npm install</code> e depois " +
+                "<code>npm run dev</code>. Em seguida abra <a href=\"http://localhost:3000\">http://localhost:3000</a>.";
+
+            if (location.protocol === "file:") {
+                text.innerHTML = "Você abriu o arquivo <code>index.html</code> diretamente, e o navegador bloqueia " +
+                    "os scripts do app nesse modo (nada vai funcionar). " + howTo;
+                warning.hidden = false;
+                return;
+            }
+
+            setTimeout(function () {
+                if (!window.__memsimReady) {
+                    title.textContent = "Os scripts do simulador não carregaram";
+                    text.innerHTML = "Recarregue a página. Se continuar, confira se o servidor está rodando e use " +
+                        "um navegador atualizado (Chrome, Edge, Firefox ou Safari recentes). " + howTo;
+                    warning.hidden = false;
+                }
+            }, 3000);
+        })();
+    </script>
 
     <script type="module" src="js/tabs.js"></script>
     <script type="module" src="js/compare.js"></script>

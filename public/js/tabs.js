@@ -85,6 +85,9 @@ function initTabs() {
     }
 
     switchTab(initialTab, { scroll: false });
+
+    // Tells the boot check in index.html that the module scripts loaded
+    window.__memsimReady = true;
 }
 
 if (document.readyState === "loading") {
