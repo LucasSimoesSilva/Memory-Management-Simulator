@@ -8,67 +8,88 @@ import {
     saveSimulationResults
 } from "./state.js";
 
-const METRIC_DEFINITIONS = [
-    {
-        key: "allocatedProcesses",
-        label: "Processos alocados",
-        rule: "max",
-        getValue: (metrics) => Number(metrics.allocatedProcesses ?? 0),
-        format: (metrics) => `${metrics.allocatedProcesses ?? 0} de ${metrics.totalProcesses ?? 0}`
-    },
-    {
-        key: "allocationRate",
-        label: "Taxa de alocação",
-        rule: "max",
-        getValue: (metrics) => Number(metrics.allocationRate ?? 0),
-        format: (metrics) => `${formatNumber(metrics.allocationRate)}%`
-    },
-    {
-        key: "rejectedProcesses",
-        label: "Processos recusados",
-        rule: "min",
-        getValue: (metrics) => (Array.isArray(metrics.rejectedProcesses) ? metrics.rejectedProcesses.length : 0),
-        format: (metrics) => {
-            const rejected = Array.isArray(metrics.rejectedProcesses) ? metrics.rejectedProcesses : [];
-            return rejected.length > 0 ? rejected.join(", ") : "Nenhum";
-        }
-    },
-    {
-        key: "finalMemoryUtilization",
-        label: "Utilização final",
-        rule: "max",
-        getValue: (metrics) => Number(metrics.finalMemoryUtilization ?? 0),
-        format: (metrics) => `${formatNumber(metrics.finalMemoryUtilization)}%`
-    },
-    {
-        key: "freeMemory",
-        label: "Memória livre",
-        rule: "neutral",
-        getValue: (metrics) => Number(metrics.freeMemory ?? 0),
-        format: (metrics) => `${metrics.freeMemory ?? 0} KB`
-    },
-    {
-        key: "largestHole",
-        label: "Maior lacuna",
-        rule: "max",
-        getValue: (metrics) => Number(metrics.largestHole ?? 0),
-        format: (metrics) => `${metrics.largestHole ?? 0} KB`
-    },
-    {
-        key: "holeCount",
-        label: "Nº de lacunas",
-        rule: "min",
-        getValue: (metrics) => Number(metrics.holeCount ?? 0),
-        format: (metrics) => String(metrics.holeCount ?? 0)
-    },
-    {
-        key: "externalFragmentation",
-        label: "Fragmentação externa",
-        rule: "min",
-        getValue: (metrics) => Number(metrics.externalFragmentation ?? 0),
-        format: (metrics) => `${formatNumber(metrics.externalFragmentation)}%`
-    }
-];
+const LEGEND_ITEMS = {
+    process: { label: "Processo (cada um com sua cor)", swatch: 'style="--segment-color: var(--mem-indigo);"' },
+    freePartition: { label: "Partição livre", className: "cmp-swatch--free" },
+    internal: { label: "Fragmentação interna", className: "cmp-swatch--internal" },
+    unused: { label: "Não particionado", className: "cmp-swatch--unused" }
+};
+
+function isFixedPartitionMode() {
+    return appState.config?.partitionType === "fixed";
+}
+
+function getMetricDefinitions(fixed) {
+    return [
+        {
+            key: "allocatedProcesses",
+            label: "Processos alocados",
+            rule: "max",
+            getValue: (metrics) => Number(metrics.allocatedProcesses ?? 0),
+            format: (metrics) => `${metrics.allocatedProcesses ?? 0} de ${metrics.totalProcesses ?? 0}`
+        },
+        {
+            key: "allocationRate",
+            label: "Taxa de alocação",
+            rule: "max",
+            getValue: (metrics) => Number(metrics.allocationRate ?? 0),
+            format: (metrics) => `${formatNumber(metrics.allocationRate)}%`
+        },
+        {
+            key: "rejectedProcesses",
+            label: "Processos recusados",
+            rule: "min",
+            getValue: (metrics) => (Array.isArray(metrics.rejectedProcesses) ? metrics.rejectedProcesses.length : 0),
+            format: (metrics) => {
+                const rejected = Array.isArray(metrics.rejectedProcesses) ? metrics.rejectedProcesses : [];
+                return rejected.length > 0 ? rejected.join(", ") : "Nenhum";
+            }
+        },
+        {
+            key: "finalMemoryUtilization",
+            label: "Utilização final",
+            rule: "max",
+            getValue: (metrics) => Number(metrics.finalMemoryUtilization ?? 0),
+            format: (metrics) => `${formatNumber(metrics.finalMemoryUtilization)}%`
+        },
+        {
+            key: "freeMemory",
+            label: "Memória livre",
+            rule: "neutral",
+            getValue: (metrics) => Number(metrics.freeMemory ?? 0),
+            format: (metrics) => `${metrics.freeMemory ?? 0} KB`
+        },
+        {
+            key: "largestHole",
+            label: fixed ? "Maior partição livre" : "Maior lacuna",
+            rule: "max",
+            getValue: (metrics) => Number(metrics.largestHole ?? 0),
+            format: (metrics) => `${metrics.largestHole ?? 0} KB`
+        },
+        {
+            key: "holeCount",
+            label: fixed ? "Partições livres" : "Nº de lacunas",
+            rule: "min",
+            getValue: (metrics) => Number(metrics.holeCount ?? 0),
+            format: (metrics) => String(metrics.holeCount ?? 0)
+        },
+        fixed
+            ? {
+                key: "internalFragmentation",
+                label: "Fragmentação interna",
+                rule: "min",
+                getValue: (metrics) => Number(metrics.internalFragmentation ?? 0),
+                format: (metrics) => `${Math.round(Number(metrics.internalFragmentation ?? 0))} KB`
+            }
+            : {
+                key: "externalFragmentation",
+                label: "Fragmentação externa",
+                rule: "min",
+                getValue: (metrics) => Number(metrics.externalFragmentation ?? 0),
+                format: (metrics) => `${formatNumber(metrics.externalFragmentation)}%`
+            }
+    ];
+}
 
 function formatNumber(value) {
     const num = Number(value ?? 0);
@@ -152,6 +173,98 @@ function renderMemoryRuler(totalMemory) {
     ruler.innerHTML = ticks.map((tick) => `<span>${tick}</span>`).join("");
 }
 
+function renderMemoryLegend(algorithms, fixed) {
+    const legend = document.getElementById("memory-legend");
+    if (!legend) {
+        return;
+    }
+
+    if (!fixed) {
+        legend.hidden = true;
+        legend.innerHTML = "";
+        return;
+    }
+
+    const hasUnusedArea = algorithms.some((alg) =>
+        appState.resultsCache[alg]?.blocks?.some((block) => Boolean(block.isUnused))
+    );
+
+    const keys = ["process", "freePartition", "internal"];
+    if (hasUnusedArea) {
+        keys.push("unused");
+    }
+
+    legend.hidden = false;
+    legend.innerHTML = keys
+        .map((key) => {
+            const item = LEGEND_ITEMS[key];
+            const attrs = item.swatch ?? "";
+            const extraClass = item.className ? ` ${item.className}` : "";
+            return `<li><span class="cmp-swatch${extraClass}" ${attrs}></span>${escapeHtml(item.label)}</li>`;
+        })
+        .join("");
+}
+
+function buildFixedSegmentHtml(block, index) {
+    const isFree = Boolean(block.isFree);
+    const isUnused = Boolean(block.isUnused);
+    const classes = ["memory-segment"];
+    const styles = [`--size: ${Number(block.size) || 0}`, `--i: ${index}`];
+
+    if (isFree) {
+        classes.push("is-free");
+    } else if (isUnused) {
+        classes.push("is-unused");
+    } else {
+        styles.push(`--segment-color: ${getProcessColor(block.process, appState.config)}`);
+        if (block.used != null && Number(block.size) > 0) {
+            const usedPercent = Math.min(100, Math.max(0, (Number(block.used) / Number(block.size)) * 100));
+            styles.push(`--used: ${usedPercent.toFixed(2)}%`);
+        }
+    }
+
+    const titleText = isUnused ? "Não particionado" : isFree ? "Livre" : block.process;
+    const sizeText = !isFree && !isUnused && block.used != null ? `${block.used} / ${block.size} KB` : `${block.size} KB`;
+    const rangeStart = Number(block.start ?? 0);
+    const rangeEnd = Number(block.end ?? rangeStart + Number(block.size ?? 0));
+
+    const partitionSuffix = block.partition ? ` · partição ${block.partition}` : "";
+    const internalAmount = !isFree && !isUnused && block.used != null ? Number(block.size) - Number(block.used) : 0;
+    const internalSuffix = internalAmount > 0 ? ` · ${internalAmount} KB de fragmentação interna` : "";
+    const tooltip = `${titleText} — ${sizeText} (${rangeStart}–${rangeEnd})${partitionSuffix}${internalSuffix}`;
+
+    return `
+        <div class="${classes.join(" ")}" style="${styles.join("; ")}" title="${escapeHtml(tooltip)}">
+            ${block.partition ? `<span class="cmp-seg-part">Partição ${block.partition}</span>` : ""}
+            <strong>${escapeHtml(titleText)}</strong>
+            <span class="cmp-seg-size">${escapeHtml(sizeText)}</span>
+            <span class="cmp-seg-range">${rangeStart}-${rangeEnd}</span>
+        </div>
+    `;
+}
+
+function buildDynamicSegmentHtml(block, index, totalMemory) {
+    const widthPercent = Math.max(0, (Number(block.size) / totalMemory) * 100);
+    const isFree = Boolean(block.isFree);
+    const segmentColor = isFree
+        ? "var(--color-free)"
+        : getProcessColor(block.process, appState.config);
+    const titleText = isFree ? "Livre" : escapeHtml(block.process);
+    const rangeEnd = Number(block.start ?? 0) + Number(block.size ?? 0);
+    const tooltip = `${isFree ? "Livre" : block.process} — ${block.size} KB (${block.start ?? 0}–${rangeEnd})`;
+
+    return `
+    <div
+      class="memory-segment${isFree ? " is-free" : ""}"
+      style="width: ${widthPercent.toFixed(4)}%; --segment-color: ${segmentColor}; --i: ${index};"
+      title="${escapeHtml(tooltip)}"
+    >
+      <strong>${titleText}</strong>
+      <span>${block.size} KB</span>
+    </div>
+  `.trim();
+}
+
 function renderMemoryBars(algorithms) {
     const container = document.getElementById("memory-list");
     if (!container) {
@@ -160,17 +273,21 @@ function renderMemoryBars(algorithms) {
 
     const displayAlgorithms = algorithms.length > 0 ? algorithms : SUPPORTED_ALGORITHMS;
     const totalMemory = Number(appState.config?.totalMemory) || 1024;
+    const fixed = isFixedPartitionMode();
+
+    renderMemoryLegend(displayAlgorithms, fixed);
 
     container.innerHTML = displayAlgorithms
         .map((alg) => {
             const label = ALGORITHM_LABELS[alg] || alg;
             const result = appState.resultsCache[alg];
+            const barClass = "memory-bar is-fixed";
 
             if (!result || !Array.isArray(result.blocks) || result.blocks.length === 0) {
                 return `
                     <div class="memory-row" data-algo="${escapeHtml(alg)}">
                         <span class="algo-name">${escapeHtml(label)}</span>
-                        <div class="memory-bar">
+                        <div class="${barClass}">
                             <div class="memory-empty">Aguardando execução</div>
                         </div>
                     </div>
@@ -178,33 +295,15 @@ function renderMemoryBars(algorithms) {
             }
 
             const segmentsHtml = result.blocks
-                .map((block, index) => {
-                    const widthPercent = Math.max(0, (Number(block.size) / totalMemory) * 100);
-                    const isFree = Boolean(block.isFree);
-                    const segmentColor = isFree
-                        ? "var(--color-free)"
-                        : getProcessColor(block.process, appState.config);
-                    const titleText = isFree ? "Livre" : escapeHtml(block.process);
-                    const rangeEnd = Number(block.start ?? 0) + Number(block.size ?? 0);
-                    const tooltip = `${isFree ? "Livre" : block.process} — ${block.size} KB (${block.start ?? 0}–${rangeEnd})`;
-
-                    return `
-                        <div
-                            class="memory-segment${isFree ? " is-free" : ""}"
-                            style="width: ${widthPercent.toFixed(4)}%; --segment-color: ${segmentColor}; --i: ${index};"
-                            title="${escapeHtml(tooltip)}"
-                        >
-                            <strong>${titleText}</strong>
-                            <span>${block.size} KB</span>
-                        </div>
-                    `;
-                })
+                .map((block, index) =>
+                    fixed ? buildFixedSegmentHtml(block, index) : buildDynamicSegmentHtml(block, index, totalMemory)
+                )
                 .join("");
 
             return `
                 <div class="memory-row" data-algo="${escapeHtml(alg)}">
                     <span class="algo-name">${escapeHtml(label)}</span>
-                    <div class="memory-bar">${segmentsHtml}</div>
+                    <div class="${barClass}">${segmentsHtml}</div>
                 </div>
             `;
         })
@@ -239,7 +338,9 @@ function renderMetricsTable(algorithms) {
         return;
     }
 
-    tbody.innerHTML = METRIC_DEFINITIONS.map((metricDef, rowIndex) => {
+    const metricDefinitions = getMetricDefinitions(isFixedPartitionMode());
+
+    tbody.innerHTML = metricDefinitions.map((metricDef, rowIndex) => {
         const rowEntries = displayAlgorithms.map((alg) => {
             const metrics = appState.resultsCache[alg]?.metrics;
             if (!metrics) {
@@ -283,6 +384,29 @@ function renderCharts(algorithms) {
     const displayAlgorithms = algorithms.length > 0 ? algorithms : SUPPORTED_ALGORITHMS;
     const totalMemory = Number(appState.config?.totalMemory) || 0;
 
+    const fixed = isFixedPartitionMode();
+
+    const fragmentationChart = fixed
+        ? {
+            title: "Fragmentação interna (menor é melhor)",
+            barColor: "#1226FF",
+            getPercent: (metrics) => {
+                if (totalMemory <= 0) {
+                    return 0;
+                }
+                return Math.min(100, Math.max(0, (Number(metrics.internalFragmentation ?? 0) / totalMemory) * 100));
+            },
+            getValueLabel: (metrics) => `${Math.round(Number(metrics.internalFragmentation ?? 0))} KB`
+        }
+        : {
+            title: "Fragmentação externa (menor é melhor)",
+            barColor: "#1226FF",
+            getPercent: (metrics) => Math.min(100, Math.max(0, Number(metrics.externalFragmentation ?? 0))),
+            getValueLabel: (metrics) => `${formatNumber(metrics.externalFragmentation)}%`
+        };
+
+    const largestFreeLabel = fixed ? "Maior partição livre" : "Maior lacuna livre";
+
     const chartSpecs = [
         {
             title: "Utilização da memória (maior é melhor)",
@@ -290,14 +414,9 @@ function renderCharts(algorithms) {
             getPercent: (metrics) => Math.min(100, Math.max(0, Number(metrics.finalMemoryUtilization ?? 0))),
             getValueLabel: (metrics) => `${formatNumber(metrics.finalMemoryUtilization)}%`
         },
+        fragmentationChart,
         {
-            title: "Fragmentação externa (menor é melhor)",
-            barColor: "#1226FF",
-            getPercent: (metrics) => Math.min(100, Math.max(0, Number(metrics.externalFragmentation ?? 0))),
-            getValueLabel: (metrics) => `${formatNumber(metrics.externalFragmentation)}%`
-        },
-        {
-            title: totalMemory > 0 ? `Maior lacuna livre (KB, de ${totalMemory})` : "Maior lacuna livre (KB)",
+            title: totalMemory > 0 ? `${largestFreeLabel} (KB, de ${totalMemory})` : `${largestFreeLabel} (KB)`,
             barColor: "#FF008C",
             getPercent: (metrics) => {
                 if (totalMemory <= 0) {
@@ -371,138 +490,106 @@ function playSectionAnimation(className, durationMs) {
     section[`_${className}Timer`] = setTimeout(() => section.classList.remove(className), durationMs);
 }
 
-function renderDivergencesTable(algorithms) {
-    const thead = document.getElementById("divergence-table-head");
-    const tbody = document.getElementById("divergence-table-body");
-    const subtitle = document.getElementById("divergence-subtitle");
-    if (!thead || !tbody) {
-        return;
-    }
+const OUTCOME_LABELS = {
+    allocated: "Alocado",
+    freed: "Liberado",
+    refused: "Recusado",
+    compacted: "Compactado",
+    skipped: "Ignorado",
+    rejected: "Rejeitado",
+};
+
+function formatEventText(step) {
+    const event = step.event ?? {};
+
+    if (event.type === "compact") return "Compactar memória";
+    if (event.type === "free") return `Liberar ${event.process}`;
+
+    return event.source === "queue"
+        ? `Alocar ${event.process} (fila)`
+        : `Alocar ${event.process} (${event.size} KB)`;
+}
+
+function renderTimelinesComparison(algorithms) {
+    const container = document.getElementById("compare-timelines-container");
+    const subtitle = document.getElementById("timeline-subtitle");
+
+    if (!container) return;
 
     const displayAlgorithms = algorithms.length > 0 ? algorithms : SUPPORTED_ALGORITHMS;
-    const colSpan = displayAlgorithms.length + 2;
-
-    thead.innerHTML = `
-        <tr>
-            <th>Evento</th>
-            <th>Lacunas no momento</th>
-            ${displayAlgorithms.map((alg) => `<th>${escapeHtml(ALGORITHM_LABELS[alg] || alg)}</th>`).join("")}
-        </tr>
-    `;
-
     const executedAlgorithms = displayAlgorithms.filter((alg) => Boolean(appState.resultsCache[alg]));
+
     if (executedAlgorithms.length === 0) {
         if (subtitle) {
-            subtitle.textContent = "Compare dois ou mais algoritmos para identificar os passos em que as escolhas de alocação diferem.";
+            subtitle.textContent =
+                "Acompanhe a sequência de eventos e as decisões de alocação passo a passo em cada algoritmo.";
         }
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="${colSpan}" class="empty-table-cell">
-                    As divergências aparecem após executar a comparação.
-                </td>
-            </tr>
-        `;
-        return;
-    }
 
-    if (executedAlgorithms.length < 2) {
-        if (subtitle) {
-            subtitle.textContent = "Selecione ao menos dois algoritmos para comparar decisões passo a passo.";
-        }
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="${colSpan}" class="empty-table-cell">
-                    Selecione pelo menos dois algoritmos para visualizar divergências.
-                </td>
-            </tr>
-        `;
-        return;
-    }
-
-    // Collect all divergence entries indexed by step across executed algorithms
-    const stepsMap = new Map();
-
-    executedAlgorithms.forEach((alg) => {
-        const divergences = Array.isArray(appState.resultsCache[alg]?.divergences)
-            ? appState.resultsCache[alg].divergences
-            : [];
-
-        divergences.forEach((item) => {
-            if (!stepsMap.has(item.step)) {
-                stepsMap.set(item.step, {
-                    step: item.step,
-                    eventLabel: item.eventLabel || `Evento ${item.step}`,
-                    holesByAlg: {},
-                    decisionsByAlg: {}
-                });
-            }
-
-            const stepEntry = stepsMap.get(item.step);
-            stepEntry.holesByAlg[alg] = item.holesAtMoment || "—";
-            stepEntry.decisionsByAlg[alg] = item.decision || "—";
-        });
-    });
-
-    const divergentRows = Array.from(stepsMap.values())
-        .sort((a, b) => Number(a.step) - Number(b.step))
-        .filter((entry) => {
-            const uniqueDecisions = new Set(
-                executedAlgorithms.map((alg) => entry.decisionsByAlg[alg] ?? "—")
-            );
-            return uniqueDecisions.size > 1;
-        });
-
-    if (divergentRows.length === 0) {
-        if (subtitle) {
-            subtitle.textContent = "Os algoritmos selecionados tomaram as mesmas decisões em todos os eventos.";
-        }
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="${colSpan}" class="empty-table-cell">
-                    Nenhuma divergência de decisão entre os algoritmos selecionados.
-                </td>
-            </tr>
-        `;
+        container.innerHTML = `
+      <div>Execute a comparação para visualizar a linha do tempo dos algoritmos.</div>
+    `;
         return;
     }
 
     if (subtitle) {
-        const firstStep = divergentRows[0].step;
-        subtitle.textContent = `As escolhas entre os algoritmos selecionados divergem a partir do evento ${firstStep}.`;
+        subtitle.textContent = "Exibindo a linha do tempo comparativa para os algoritmos selecionados.";
     }
 
-    tbody.innerHTML = divergentRows
-        .map((entry, rowIndex) => {
-            const holeValues = executedAlgorithms
-                .map((alg) => entry.holesByAlg[alg])
-                .filter((val) => val && val !== "—");
-            const uniqueHoles = new Set(holeValues);
-            const holesLabel = uniqueHoles.size === 1
-                ? holeValues[0]
-                : "varia conforme os passos anteriores";
+    container.innerHTML = displayAlgorithms
+        .map((alg) => {
+            const label = ALGORITHM_LABELS[alg] || alg;
+            const result = appState.resultsCache[alg];
+            const steps = Array.isArray(result?.steps) ? result.steps : [];
 
-            const decisionCells = displayAlgorithms
-                .map((alg) => `<td>${escapeHtml(entry.decisionsByAlg[alg] ?? "—")}</td>`)
+            if (steps.length === 0) {
+                return `
+          <div class="compare-timeline-column">
+            <div class="compare-timeline-header">${escapeHtml(label)}</div>
+            <div>Aguardando execução</div>
+          </div>
+        `;
+            }
+
+            const stepsHtml = steps
+                .map((step) => {
+                    const statusText = OUTCOME_LABELS[step.outcome] || step.outcome;
+                    const statusClass = `compare-tl-status--${step.outcome}`;
+                    const eventDesc = formatEventText(step);
+
+                    return `
+            <li class="compare-timeline-item">
+              <span class="compare-tl-badge">${escapeHtml(step.label)}</span>
+              <div class="compare-tl-info">
+                <span class="compare-tl-label">${escapeHtml(eventDesc)}</span>
+                <span class="compare-tl-status ${statusClass}">${escapeHtml(statusText)}</span>
+              </div>
+            </li>
+          `;
+                })
                 .join("");
 
             return `
-                <tr style="--i: ${rowIndex};">
-                    <td>${escapeHtml(entry.eventLabel)}</td>
-                    <td>${escapeHtml(holesLabel)}</td>
-                    ${decisionCells}
-                </tr>
-            `;
+        <div class="compare-timeline-column">
+          <div class="compare-timeline-header">
+            <span>${escapeHtml(label)}</span>
+            <span>${steps.length} passos</span>
+          </div>
+          <ul class="compare-timeline-list">${stepsHtml}</ul>
+        </div>
+      `;
         })
         .join("");
 }
 
 function renderComparisonView() {
     const selectedAlgorithms = getSelectedAlgorithms();
+
     renderMemoryRuler(appState.config?.totalMemory);
     renderMemoryBars(selectedAlgorithms);
+    updateCompareSegmentSizes();
     renderMetricsTable(selectedAlgorithms);
     renderCharts(selectedAlgorithms);
-    renderDivergencesTable(selectedAlgorithms);
+    renderTimelinesComparison(selectedAlgorithms);
 }
 
 function updateRunButtonState() {
@@ -642,7 +729,26 @@ function initCompareTab() {
         handleRunComparison();
     });
 
+    window.addEventListener("resize", updateCompareSegmentSizes);
+
     syncComparePageState();
+}
+
+function updateCompareSegmentSizes() {
+    const segments = document.querySelectorAll("#tab-compare .memory-segment");
+    segments.forEach((segment) => {
+        const width = segment.offsetWidth;
+        const isFixedBar = segment.closest(".memory-bar")?.classList.contains("is-fixed");
+
+        if (isFixedBar) {
+            segment.classList.toggle("is-tiny", width < 26);
+            segment.classList.toggle("is-narrow", width >= 26 && width < 64);
+            segment.classList.toggle("is-no-range", width >= 64 && width < 92);
+        } else {
+            segment.classList.toggle("is-tiny", width < 28);
+            segment.classList.remove("is-narrow", "is-no-range");
+        }
+    });
 }
 
 if (document.readyState === "loading") {

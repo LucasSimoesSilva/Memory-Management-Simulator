@@ -62,7 +62,8 @@
             <div class="page-header cfg-reveal" style="--i: 0;">
                 <div>
                     <h2 id="cfg-title">Configurar Simulação</h2>
-                    <p class="subtitle">Defina a memória, escolha o algoritmo de alocação e cadastre a sequência de eventos.
+                    <p class="subtitle">Defina a memória, escolha o algoritmo de alocação e cadastre a sequência de
+                        eventos.
                     </p>
                 </div>
                 <button type="button" id="cfg-btn-reset" class="btn cfg-btn-outline cfg-btn-reset" disabled>
@@ -110,7 +111,8 @@
                                 <input id="cfg-partitions-input" class="cfg-input cfg-input--mono" type="text"
                                     autocomplete="off" placeholder="ex.: 100, 200, 256, 340"
                                     aria-describedby="cfg-partitions-sum" />
-                                <div id="cfg-partitions-preview" class="cfg-partitions-preview" aria-hidden="true"></div>
+                                <div id="cfg-partitions-preview" class="cfg-partitions-preview" aria-hidden="true">
+                                </div>
                                 <p id="cfg-partitions-sum" class="cfg-partitions-sum" aria-live="polite"></p>
                                 <button type="button" id="cfg-split-equal" class="cfg-link">Dividir em 4 partes
                                     iguais</button>
@@ -213,9 +215,11 @@
                     <div id="cfg-empty" class="cfg-empty">
                         <span class="icon icon--empty cfg-empty-icon" aria-hidden="true"></span>
                         <p class="cfg-empty-title">Nenhum evento cadastrado</p>
-                        <p class="cfg-empty-text">Adicione eventos de alocação e liberação no formulário acima, ou carregue
+                        <p class="cfg-empty-text">Adicione eventos de alocação e liberação no formulário acima, ou
+                            carregue
                             um caso de teste pronto para começar mais rápido.</p>
-                        <button type="button" id="cfg-btn-sample" class="btn cfg-btn-outline cfg-btn-sample">Carregar Caso
+                        <button type="button" id="cfg-btn-sample" class="btn cfg-btn-outline cfg-btn-sample">Carregar
+                            Caso
                             1</button>
                     </div>
 
@@ -250,7 +254,8 @@
             <!-- ACTION BAR -->
             <div class="card cfg-actionbar cfg-reveal" style="--i: 3;">
                 <div class="cfg-actionbar-text">
-                    <p id="cfg-summary" aria-live="polite">Nenhum evento cadastrado - cadastre ao menos uma alocação para
+                    <p id="cfg-summary" aria-live="polite">Nenhum evento cadastrado - cadastre ao menos uma alocação
+                        para
                         iniciar</p>
                     <p id="cfg-pending" class="cfg-pending" hidden>Alterações ainda não aplicadas</p>
                 </div>
@@ -329,7 +334,8 @@
                 <header class="sim-card-head">
                     <h3 class="card-title">Mapa da memória</h3>
                     <ul class="sim-legend" aria-label="Legenda">
-                        <li><span class="sim-swatch" style="--segment-color: var(--mem-indigo);"></span>Processo (cada um com
+                        <li><span class="sim-swatch" style="--segment-color: var(--mem-indigo);"></span>Processo (cada
+                            um com
                             sua cor)</li>
                         <li><span class="sim-swatch sim-swatch--free"></span>Lacuna livre</li>
                     </ul>
@@ -355,7 +361,8 @@
                     <div id="sim-decision-body" class="sim-decision-body" aria-live="polite">
                         <div class="sim-outcome sim-outcome--empty">
                             <p class="sim-outcome-title">Aguardando o primeiro evento</p>
-                            <p class="sim-outcome-text">Aqui o simulador explica, passo a passo, quais lacunas o algoritmo
+                            <p class="sim-outcome-text">Aqui o simulador explica, passo a passo, quais lacunas o
+                                algoritmo
                                 verificou e por que escolheu (ou recusou) cada uma.</p>
                         </div>
                     </div>
@@ -480,7 +487,10 @@
 
             <!-- FINAL STATE OF MEMORY -->
             <article class="card">
-                <h3 class="card-title">Estado final da memória</h3>
+                <div class="memory-card-header">
+                    <h3 class="card-title">Estado final da memória</h3>
+                    <ul class="cmp-legend" id="memory-legend" aria-label="Legenda do mapa de memória" hidden></ul>
+                </div>
 
                 <div id="memory-list" class="memory-list">
                     <div class="memory-row" data-algo="first-fit">
@@ -627,31 +637,17 @@
                 </article>
             </div>
 
-            <!-- DECISION DIVERGENCES -->
+            <!-- TIMELINE TABLE -->
             <article class="card">
-                <h3 class="card-title">Onde as decisões divergem</h3>
-                <p id="divergence-subtitle" class="card-subtitle">
-                    Compare dois ou mais algoritmos para identificar os passos em que as escolhas de alocação diferem.
+                <h3 class="card-title">Linha do Tempo por Algoritmo</h3>
+                <p id="timeline-subtitle" class="card-subtitle">
+                    Acompanhe a sequência de eventos e as decisões de alocação passo a passo em cada algoritmo.
                 </p>
 
-                <div class="table-wrapper">
-                    <table class="data-table divergence-table">
-                        <thead id="divergence-table-head">
-                            <tr>
-                                <th>Evento</th>
-                                <th>Lacunas no momento</th>
-                                <th>First Fit</th>
-                                <th>Best Fit</th>
-                                <th>Worst Fit</th>
-                            </tr>
-                        </thead>
-                        <tbody id="divergence-table-body">
-                            <tr>
-                                <td colspan="5" class="empty-table-cell">As divergências aparecem após executar a
-                                    comparação.</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div id="compare-timelines-container" class="compare-timelines-grid">
+                    <div class="empty-table-cell">
+                        Execute a comparação para visualizar a linha do tempo dos algoritmos.
+                    </div>
                 </div>
             </article>
 

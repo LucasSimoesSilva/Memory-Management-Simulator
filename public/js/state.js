@@ -21,8 +21,7 @@ export const FALLBACK_PROCESS_COLORS = [
 ];
 
 /**
- * Reference scenario ("Caso 1"). 896 KB keeps the same usable memory the Figma designs had
- * (1024 KB minus 128 KB of OS), so P6 is still refused by external fragmentation.
+ * Reference scenario ("Caso 1"). 896 KB keeps the same usable memory the Figma designs had (1024 KB minus)
  */
 export const SAMPLE_CONFIG = {
     totalMemory: 896,
