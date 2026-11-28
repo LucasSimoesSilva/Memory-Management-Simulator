@@ -274,17 +274,25 @@ function renderTable(sequence) {
                 : `<span class="cfg-proc"><span class="cfg-swatch" style="--segment-color: ${getProcessColor(event.process, appState.config)};"></span>${escapeHtml(event.process)}</span>`;
 
             return `
-                <tr class="${classes.join(" ")}" data-index="${index}" style="--i: ${view.staggerRows ? index : 0};">
-                    <td><span class="cfg-row-index">${index + 1}${alert}</span></td>
-                    <td><span class="cfg-pill cfg-pill--${pill.className}">${pill.label}</span></td>
-                    <td data-size="${escapeHtml(isCompact ? "" : sizeText)}">${processCell}</td>
-                    <td>${escapeHtml(sizeText)}${rejectTag}</td>
-                    <td>
-                        <button type="button" class="cfg-delete" data-delete="${index}" aria-label="Remover evento ${index + 1}: ${escapeHtml(label)}">
-                            <span class="icon icon--trash" aria-hidden="true"></span>
-                        </button>
-                    </td>
-                </tr>
+              <tr class="${classes.join(" ")}" data-index="${index}" style="--i: ${view.staggerRows ? index : 0};">
+                <td><span class="cfg-row-index">${index + 1}${alert}</span></td>
+                <td><span class="cfg-pill cfg-pill--${pill.className}">${pill.label}</span></td>
+                <td data-size="${escapeHtml(isCompact ? "" : sizeText)}">${processCell}</td>
+                <td>${escapeHtml(sizeText)}${rejectTag}</td>
+                <td>
+                  <div class="cfg-actions-cell">
+                    <button type="button" class="cfg-btn-move" data-move-up="${index}" ${index === 0 ? "disabled" : ""} aria-label="Subir evento ${index + 1}">
+                      ▲
+                    </button>
+                    <button type="button" class="cfg-btn-move" data-move-down="${index}" ${index === draft.events.length - 1 ? "disabled" : ""} aria-label="Descer evento ${index + 1}">
+                      ▼
+                    </button>
+                    <button type="button" class="cfg-delete" data-delete="${index}" aria-label="Remover evento ${index + 1}: ${escapeHtml(label)}">
+                      <span class="icon icon--trash" aria-hidden="true"></span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
             `;
         })
         .join("");
@@ -729,9 +737,22 @@ function bindEvents() {
     el.form.addEventListener("submit", handleAddEvent);
 
     el.eventsBody.addEventListener("click", (event) => {
-        const button = event.target.closest("[data-delete]");
-        if (button) {
-            handleDelete(Number(button.dataset.delete));
+        const deleteBtn = event.target.closest("[data-delete]");
+        if (deleteBtn) {
+            handleDelete(Number(deleteBtn.dataset.delete));
+            return;
+        }
+
+        const moveUpBtn = event.target.closest("[data-move-up]");
+        if (moveUpBtn && !moveUpBtn.disabled) {
+            handleMove(Number(moveUpBtn.dataset.moveUp), "up");
+            return;
+        }
+
+        const moveDownBtn = event.target.closest("[data-move-down]");
+        if (moveDownBtn && !moveDownBtn.disabled) {
+            handleMove(Number(moveDownBtn.dataset.moveDown), "down");
+            return;
         }
     });
 
@@ -761,6 +782,25 @@ function bindEvents() {
             playEntryAnimation();
         }
     });
+}
+
+/**
+ * Reorders an event up or down in the sequence.
+ */
+function handleMove(index, direction) {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= draft.events.length) {
+        return;
+    }
+
+    // Swap position of adjacent events
+    const temp = draft.events[index];
+    draft.events[index] = draft.events[targetIndex];
+    draft.events[targetIndex] = temp;
+
+    hideToast();
+    saveDraft({ immediate: true });
+    render();
 }
 
 function playEntryAnimation() {

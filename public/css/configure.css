@@ -49,8 +49,8 @@
 .cfg-input:focus-visible,
 .cfg-link:focus-visible,
 .cfg-delete:focus-visible,
-.cfg-segmented input:focus-visible + label,
-.cfg-algorithm input:focus-visible ~ .cfg-radio {
+.cfg-segmented input:focus-visible+label,
+.cfg-algorithm input:focus-visible~.cfg-radio {
     outline: 2px solid var(--purple-vibrant);
     outline-offset: 2px;
 }
@@ -325,7 +325,7 @@
     transition: transform var(--dur-base) var(--ease-out);
 }
 
-#cfg-mode-fixed:checked ~ .cfg-segmented-thumb {
+#cfg-mode-fixed:checked~.cfg-segmented-thumb {
     transform: translateX(100%);
 }
 
@@ -408,11 +408,22 @@
     display: none;
 }
 
-.cfg-partitions-sum.is-equal { color: var(--status-allocated); }
-.cfg-partitions-sum.is-under { color: var(--status-warning-text); }
+.cfg-partitions-sum.is-equal {
+    color: var(--status-allocated);
+}
+
+.cfg-partitions-sum.is-under {
+    color: var(--status-warning-text);
+}
+
 .cfg-partitions-sum.is-over,
-.cfg-partitions-sum.is-invalid { color: var(--status-danger-text); }
-.cfg-partitions-sum.is-unknown { color: var(--text-muted); }
+.cfg-partitions-sum.is-invalid {
+    color: var(--status-danger-text);
+}
+
+.cfg-partitions-sum.is-unknown {
+    color: var(--text-muted);
+}
 
 .cfg-partitions .cfg-link {
     align-self: flex-start;
@@ -491,7 +502,7 @@
     animation: cfg-glow 600ms var(--ease-out);
 }
 
-.cfg-algorithm input:checked ~ .cfg-radio::after {
+.cfg-algorithm input:checked~.cfg-radio::after {
     transform: scale(1);
 }
 
@@ -845,78 +856,205 @@
     animation: cfg-attention 1.4s ease-out 1;
 }
 
+/* --- MOVE & ACTIONS BUTTONS --- */
+.cfg-actions-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.cfg-btn-move {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    color: var(--text-primary);
+    background: transparent;
+    border: 1px solid var(--border-purple);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background-color var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast), opacity var(--dur-fast);
+}
+
+.cfg-btn-move:hover:not(:disabled) {
+    border-color: var(--purple-vibrant);
+    background-color: rgba(93, 40, 199, 0.22);
+    color: var(--text-primary);
+}
+
+.cfg-btn-move:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+    border-color: transparent;
+}
+
 /* =====================================================================
    KEYFRAMES
    ===================================================================== */
 @keyframes cfg-fade-up {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes cfg-fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes cfg-pop-in {
-    from { opacity: 0; transform: scale(0.85); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+        opacity: 0;
+        transform: scale(0.85);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 @keyframes cfg-tick {
-    from { opacity: 0.2; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0.2;
+        transform: translateY(-4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes cfg-slide-down {
-    from { opacity: 0; transform: translateY(-6px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes cfg-slide-up {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes cfg-shake-x {
-    0%, 100% { transform: translateX(0); }
-    20%, 60% { transform: translateX(-4px); }
-    40%, 80% { transform: translateX(4px); }
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20%,
+    60% {
+        transform: translateX(-4px);
+    }
+
+    40%,
+    80% {
+        transform: translateX(4px);
+    }
 }
 
 @keyframes cfg-glow {
-    0% { box-shadow: 0 0 0 0 transparent; }
-    40% { box-shadow: 0 0 14px 0 rgba(105, 37, 242, 0.45); }
-    100% { box-shadow: 0 0 0 0 transparent; }
+    0% {
+        box-shadow: 0 0 0 0 transparent;
+    }
+
+    40% {
+        box-shadow: 0 0 14px 0 rgba(105, 37, 242, 0.45);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 transparent;
+    }
 }
 
 @keyframes cfg-row-in {
-    from { opacity: 0; transform: translateY(-6px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes cfg-flash-new {
-    0% { background-color: rgba(105, 37, 242, 0.35); }
-    100% { background-color: transparent; }
+    0% {
+        background-color: rgba(105, 37, 242, 0.35);
+    }
+
+    100% {
+        background-color: transparent;
+    }
 }
 
 @keyframes cfg-row-out {
-    to { opacity: 0; transform: translateX(14px); }
+    to {
+        opacity: 0;
+        transform: translateX(14px);
+    }
 }
 
 @keyframes cfg-float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-3px); }
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-3px);
+    }
 }
 
 @keyframes cfg-progress {
-    from { transform: scaleX(1); }
-    to { transform: scaleX(0); }
+    from {
+        transform: scaleX(1);
+    }
+
+    to {
+        transform: scaleX(0);
+    }
 }
 
 @keyframes cfg-attention {
-    0% { box-shadow: 0 0 0 0 rgba(105, 37, 242, 0.7); }
-    100% { box-shadow: 0 0 0 12px rgba(105, 37, 242, 0); }
+    0% {
+        box-shadow: 0 0 0 0 rgba(105, 37, 242, 0.7);
+    }
+
+    100% {
+        box-shadow: 0 0 0 12px rgba(105, 37, 242, 0);
+    }
 }
 
 /* =====================================================================
@@ -969,7 +1107,7 @@
         backdrop-filter: blur(8px);
     }
 
-    .cfg-actionbar-buttons > .btn {
+    .cfg-actionbar-buttons>.btn {
         flex: 1;
     }
 
@@ -1049,11 +1187,28 @@
         width: auto !important;
     }
 
-    .cfg-events-table td:nth-child(1) { grid-area: index; }
-    .cfg-events-table td:nth-child(2) { grid-area: event; }
-    .cfg-events-table td:nth-child(3) { grid-area: proc; display: flex; gap: 12px; align-items: center; }
-    .cfg-events-table td:nth-child(4) { display: none; }
-    .cfg-events-table td:nth-child(5) { grid-area: action; }
+    .cfg-events-table td:nth-child(1) {
+        grid-area: index;
+    }
+
+    .cfg-events-table td:nth-child(2) {
+        grid-area: event;
+    }
+
+    .cfg-events-table td:nth-child(3) {
+        grid-area: proc;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .cfg-events-table td:nth-child(4) {
+        display: none;
+    }
+
+    .cfg-events-table td:nth-child(5) {
+        grid-area: action;
+    }
 
     .cfg-events-table td:nth-child(3)::after {
         content: attr(data-size);
@@ -1088,6 +1243,7 @@
    REDUCED MOTION
    ===================================================================== */
 @media (prefers-reduced-motion: reduce) {
+
     #tab-configure *,
     #tab-configure *::before,
     #tab-configure *::after {
